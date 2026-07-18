@@ -1,5 +1,5 @@
-import { PROMPTS } from '../data/prompts'
 import { TONGUE_TWISTERS } from '../data/tongueTwisters'
+import { WORDS } from '../data/words'
 import { splitLiveHypothesis } from '../speech/liveAgent'
 import type { GameState, PhraseAttempt, RoundStats, TestMode } from '../types'
 import { commitWord, createWordState, previewWord } from './align'
@@ -19,13 +19,13 @@ function shuffle<T>(items: T[]): T[] {
   return copy
 }
 
+/** Monkeytype-style stream: shuffled common English content words. */
 export function buildWordList(count = 220): string[] {
-  const pool = shuffle(PROMPTS).flatMap((prompt) => tokenizeWords(prompt))
-  if (pool.length === 0) return []
+  if (WORDS.length === 0) return []
 
   const words: string[] = []
   while (words.length < count) {
-    words.push(...shuffle(pool))
+    words.push(...shuffle(WORDS))
   }
   return words.slice(0, count)
 }

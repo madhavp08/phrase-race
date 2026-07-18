@@ -94,13 +94,17 @@ export function TestScreen({
           <p className="start-hint">
             {supported ? (
               <>
-                <button type="button" className="text-btn primary" onClick={onStart}>
-                  click to speak
-                </button>
-                <span className="hint-or">or</span>
                 <span>
-                  press <span className="keychip">enter</span>
+                  press <span className="keychip">tab</span> to start
                 </span>
+                <span className="hint-or">or</span>
+                <button
+                  type="button"
+                  className="text-btn primary"
+                  onClick={onStart}
+                >
+                  click
+                </button>
               </>
             ) : (
               'Use Chrome for speech recognition'
@@ -128,7 +132,7 @@ export function TestScreen({
       </button>
 
       <p className="keytip">
-        <span>tab</span> — home
+        <span>tab</span> — {playing ? 'home' : 'start'}
       </p>
     </section>
   )

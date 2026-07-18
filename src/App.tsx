@@ -313,17 +313,12 @@ function App() {
       if (event.key === 'Tab') {
         if (typingInField) return
         event.preventDefault()
-        goHome()
-        return
-      }
-
-      if (
-        event.key === 'Enter' &&
-        phaseRef.current === 'idle' &&
-        !typingInField
-      ) {
-        event.preventDefault()
-        void startRound()
+        // Idle → start; playing/results → home (Monkeytype-style loop).
+        if (phaseRef.current === 'idle') {
+          void startRound()
+        } else {
+          goHome()
+        }
       }
     }
 
