@@ -12,8 +12,10 @@ import {
   tryRankScore,
   type LeaderboardEntry,
 } from './data/leaderboard'
-import { isSpeechRecognitionSupported } from './speech/recognition'
-import { useSpeechRecognition } from './speech/useSpeechRecognition'
+import {
+  isSpeechRecognitionSupported,
+  useSpeechRecognition,
+} from './speech'
 import type {
   GamePhase,
   PhraseAttempt,
@@ -195,6 +197,7 @@ function App() {
     listening,
     error: speechError,
     setError: setSpeechError,
+    connectionState,
     requestPermission,
     abort,
   } = useSpeechRecognition({
@@ -409,6 +412,7 @@ function App() {
             playing={phase === 'playing'}
             focused={phase === 'playing'}
             listening={listening}
+            connectionState={connectionState}
             supported={supported}
             error={startError ?? speechError}
             onModeChange={(next) => {

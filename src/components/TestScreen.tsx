@@ -1,3 +1,4 @@
+import type { SpeechConnectionState } from '../speech'
 import type { TestMode, WordState } from '../types'
 import { ConfigBar } from './ConfigBar'
 import { LiveStats } from './LiveStats'
@@ -18,6 +19,7 @@ interface TestScreenProps {
   playing: boolean
   focused: boolean
   listening: boolean
+  connectionState: SpeechConnectionState
   supported: boolean
   error: string | null
   onModeChange: (mode: TestMode) => void
@@ -45,6 +47,7 @@ export function TestScreen({
   playing,
   focused,
   listening,
+  connectionState,
   supported,
   error,
   onModeChange,
@@ -112,11 +115,17 @@ export function TestScreen({
           </p>
         )}
 
-        {playing && listening && (
+        {playing && connectionState === 'live' && (
           <p className="listening-hint live">listening — keep talking</p>
         )}
-        {playing && !listening && !error && (
-          <p className="listening-hint">reconnecting mic…</p>
+        {playing && connectionState === 'connecting' && (
+          <p className="listening-hint">connecting to Deepgram…</p>
+        )}
+        {playing && connectionState === 'reconnecting' && (
+          <p className="listening-hint">reconnecting…</p>
+        )}
+        {playing && !listening && !error && connectionState === 'idle' && (
+          <p className="listening-hint">starting mic…</p>
         )}
       </div>
 
