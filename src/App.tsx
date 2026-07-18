@@ -74,6 +74,7 @@ function App() {
   const startingRef = useRef(false)
   const micReadyRef = useRef(false)
   const abortRef = useRef<() => void>(() => {})
+  const timerStartedRef = useRef(false)
 
   const [phase, setPhase] = useState<GamePhase>('idle')
   const [mode, setMode] = useState<TestMode>('time')
@@ -120,6 +121,7 @@ function App() {
       window.clearInterval(tickTimerRef.current)
       tickTimerRef.current = null
     }
+    timerStartedRef.current = false
   }, [])
 
   const goHome = useCallback(() => {
@@ -207,6 +209,33 @@ function App() {
     abortRef.current = abort
   }, [abort])
 
+  useEffect(() => {
+    if (phase !== 'playing' || !listening || timerStartedRef.current) return
+    timerStartedRef.current = true
+
+    const startedAt = performance.now()
+
+    if (mode === 'time') {
+      const durationMs = activeDuration * 1000
+      roundTimerRef.current = window.setTimeout(() => {
+        finishRound()
+      }, durationMs)
+
+      tickTimerRef.current = window.setInterval(() => {
+        const elapsed = performance.now() - startedAt
+        setTimeLeftSec(Math.max(0, Math.ceil((durationMs - elapsed) / 1000)))
+        setElapsedSec(Math.floor(elapsed / 1000))
+        setStats(engineRef.current.getStats())
+      }, 100)
+    } else {
+      tickTimerRef.current = window.setInterval(() => {
+        const elapsed = performance.now() - startedAt
+        setElapsedSec(Math.floor(elapsed / 1000))
+        setStats(engineRef.current.getStats())
+      }, 100)
+    }
+  }, [phase, listening, mode, activeDuration, finishRound])
+
   const startRound = useCallback(async () => {
     if (startingRef.current) return
     startingRef.current = true
@@ -244,28 +273,9 @@ function App() {
       setTimeLeftSec(seconds)
       setElapsedSec(0)
       setLastRank(null)
-
-      const startedAt = performance.now()
-
-      if (mode === 'time') {
-        const durationMs = seconds * 1000
-        roundTimerRef.current = window.setTimeout(() => {
-          finishRound()
-        }, durationMs)
-
-        tickTimerRef.current = window.setInterval(() => {
-          const elapsed = performance.now() - startedAt
-          setTimeLeftSec(Math.max(0, Math.ceil((durationMs - elapsed) / 1000)))
-          setElapsedSec(Math.floor(elapsed / 1000))
-          setStats(engineRef.current.getStats())
-        }, 100)
-      } else {
-        tickTimerRef.current = window.setInterval(() => {
-          const elapsed = performance.now() - startedAt
-          setElapsedSec(Math.floor(elapsed / 1000))
-          setStats(engineRef.current.getStats())
-        }, 100)
-      }
+      // Timer itself starts once the mic actually connects — see the
+      // `listening` effect below — so the countdown doesn't burn time
+      // while Deepgram's WebSocket is still handshaking.
     } finally {
       startingRef.current = false
     }

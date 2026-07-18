@@ -107,7 +107,7 @@ export function TestScreen({
                 </button>
               </>
             ) : (
-              'Use Chrome for speech recognition'
+              'Microphone / MediaRecorder not supported in this browser'
             )}
           </p>
         )}

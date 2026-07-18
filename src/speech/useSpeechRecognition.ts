@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  createSpeechRecognition,
-  isSpeechRecognitionSupported,
+  isDeepgramSpeechSupported,
   requestMicrophonePermission,
-} from './recognition'
+  startDeepgramRecognition,
+  type DeepgramSession,
+} from './deepgramRecognition'
 
 interface UseSpeechRecognitionOptions {
   onFinalTranscript: (transcript: string) => void
@@ -19,14 +20,16 @@ export function useSpeechRecognition({
   const [listening, setListening] = useState(false)
   const [liveHypothesis, setLiveHypothesis] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [supported] = useState(() => isSpeechRecognitionSupported())
+  const [supported] = useState(() => isDeepgramSpeechSupported())
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const sessionRef = useRef<DeepgramSession | null>(null)
   const onFinalRef = useRef(onFinalTranscript)
   const onLiveRef = useRef(onLiveHypothesis)
   const wantListenRef = useRef(false)
   const enabledRef = useRef(enabled)
+  const startGenerationRef = useRef(0)
   const restartTimerRef = useRef<number | null>(null)
+  const failureCountRef = useRef(0)
 
   useEffect(() => {
     onFinalRef.current = onFinalTranscript
@@ -49,63 +52,101 @@ export function useSpeechRecognition({
 
   const tearDown = useCallback(() => {
     clearRestartTimer()
-    const recognition = recognitionRef.current
-    if (!recognition) return
-    try {
-      recognition.onresult = null
-      recognition.onerror = null
-      recognition.onend = null
-      recognition.abort()
-    } catch {
-      // ignore
-    }
-    recognitionRef.current = null
-  }, [clearRestartTimer])
-
-  const bindAndStart = useCallback(() => {
-    const recognition = createSpeechRecognition({
-      onLive: (hypothesis) => {
-        setLiveHypothesis(hypothesis)
-        onLiveRef.current?.(hypothesis)
-      },
-      onFinal: (transcript) => {
-        onFinalRef.current(transcript)
-      },
-      onError: (message) => {
-        setError(message)
-        setListening(false)
-      },
-      onEnd: () => {
-        setListening(false)
-        if (!wantListenRef.current || !enabledRef.current) return
-        clearRestartTimer()
-        restartTimerRef.current = window.setTimeout(() => {
-          if (!wantListenRef.current || !enabledRef.current) return
-          try {
-            recognitionRef.current = null
-            bindAndStart()
-          } catch {
-            // retry on next cycle
-          }
-        }, 50)
-      },
-    })
-
-    recognitionRef.current = recognition
-    recognition.start()
-    setListening(true)
+    sessionRef.current?.stop()
+    sessionRef.current = null
+    setListening(false)
+    setLiveHypothesis('')
   }, [clearRestartTimer])
 
   const abort = useCallback(() => {
     wantListenRef.current = false
+    startGenerationRef.current += 1
     tearDown()
-    setListening(false)
-    setLiveHypothesis('')
   }, [tearDown])
+
+  const bindAndStart = useCallback(() => {
+    const generation = ++startGenerationRef.current
+
+    void (async () => {
+      try {
+        const session = await startDeepgramRecognition({
+          onLive: (hypothesis) => {
+            if (
+              !wantListenRef.current ||
+              generation !== startGenerationRef.current
+            ) {
+              return
+            }
+            setLiveHypothesis(hypothesis)
+            onLiveRef.current?.(hypothesis)
+          },
+          onFinal: (transcript) => {
+            if (
+              !wantListenRef.current ||
+              generation !== startGenerationRef.current
+            ) {
+              return
+            }
+            onFinalRef.current(transcript)
+          },
+          onError: (message) => {
+            if (generation !== startGenerationRef.current) return
+            setError(message)
+            setListening(false)
+            sessionRef.current = null
+          },
+          onEnd: () => {
+            if (generation !== startGenerationRef.current) return
+            setListening(false)
+            sessionRef.current = null
+            if (!wantListenRef.current || !enabledRef.current) return
+            failureCountRef.current += 1
+            if (failureCountRef.current >= 4) {
+              setError(
+                'Deepgram keeps dropping the connection. Check the browser console for the close code/reason.',
+              )
+              return
+            }
+            clearRestartTimer()
+            restartTimerRef.current = window.setTimeout(() => {
+              if (!wantListenRef.current || !enabledRef.current) return
+              bindAndStart()
+            }, 80)
+          },
+          onListeningChange: (isListening) => {
+            if (generation !== startGenerationRef.current) return
+            setListening(isListening)
+            if (isListening) failureCountRef.current = 0
+          },
+        })
+
+        if (
+          !wantListenRef.current ||
+          generation !== startGenerationRef.current ||
+          !enabledRef.current
+        ) {
+          session.stop()
+          return
+        }
+
+        sessionRef.current = session
+      } catch (err) {
+        if (generation !== startGenerationRef.current) return
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Could not start Deepgram speech recognition.'
+        setError(message)
+        setListening(false)
+      }
+    })()
+  }, [clearRestartTimer])
 
   const start = useCallback(() => {
     if (!supported) {
-      setError('Web Speech API is not supported. Please use Chrome.')
+      setError(
+        'Live speech requires a browser with microphone and MediaRecorder support.',
+      )
       return
     }
 
@@ -113,21 +154,9 @@ export function useSpeechRecognition({
     setLiveHypothesis('')
     tearDown()
     wantListenRef.current = true
-
-    try {
-      bindAndStart()
-    } catch {
-      clearRestartTimer()
-      restartTimerRef.current = window.setTimeout(() => {
-        if (!wantListenRef.current || !enabledRef.current) return
-        try {
-          bindAndStart()
-        } catch {
-          // give up
-        }
-      }, 80)
-    }
-  }, [bindAndStart, clearRestartTimer, supported, tearDown])
+    failureCountRef.current = 0
+    bindAndStart()
+  }, [bindAndStart, supported, tearDown])
 
   const requestPermission = useCallback(async () => {
     try {
