@@ -20,12 +20,19 @@ export async function requestMicrophonePermission(): Promise<boolean> {
 }
 
 export interface SpeechRecognitionHandlers {
-  onInterim?: (transcript: string) => void
+  /** Live hypothesis — updates as the user speaks (interim + uncommitted). */
+  onLive?: (hypothesis: string) => void
+  /** Newly finalized transcript segment from Chrome. */
   onFinal: (transcript: string) => void
   onError?: (message: string) => void
   onEnd?: () => void
 }
 
+/**
+ * Chrome Web Speech wrapper.
+ * Rebuilds the full live hypothesis on every result so the UI can paint
+ * letter mistakes while the user is still talking (not only after a pause).
+ */
 export function createSpeechRecognition(
   handlers: SpeechRecognitionHandlers,
 ): SpeechRecognition {
@@ -36,45 +43,59 @@ export function createSpeechRecognition(
 
   const recognition = new SpeechRecognitionCtor()
   recognition.lang = 'en-US'
-  // Continuous stream — Monkeytype-style: keep going, don't stop per phrase.
   recognition.continuous = true
   recognition.interimResults = true
   recognition.maxAlternatives = 1
 
+  let processedFinalCount = 0
+
   recognition.onresult = (event: SpeechRecognitionEvent) => {
-    let interim = ''
-    let final = ''
+    let live = ''
+    let newFinal = ''
 
-    for (let i = event.resultIndex; i < event.results.length; i += 1) {
+    for (let i = 0; i < event.results.length; i += 1) {
       const transcript = event.results[i][0].transcript
-
       if (event.results[i].isFinal) {
-        final += `${transcript} `
+        if (i >= processedFinalCount) {
+          newFinal += `${transcript} `
+        }
       } else {
-        interim += transcript
+        live += transcript
       }
     }
 
-    handlers.onInterim?.(interim)
+    // Count finals currently in the result buffer.
+    let finalCount = 0
+    for (let i = 0; i < event.results.length; i += 1) {
+      if (event.results[i].isFinal) finalCount += 1
+    }
+    processedFinalCount = finalCount
 
-    if (final.trim()) {
-      handlers.onFinal(final.trim())
+    // Live agent sees non-final speech immediately.
+    handlers.onLive?.(live)
+
+    if (newFinal.trim()) {
+      handlers.onFinal(newFinal.trim())
     }
   }
 
   recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
     if (event.error === 'not-allowed') {
       handlers.onError?.('Microphone permission was denied.')
-    } else if (event.error === 'no-speech') {
-      // Common in continuous mode — keep listening via onend restart.
-    } else if (event.error === 'aborted') {
-      // Expected when stopping a round.
+    } else if (event.error === 'no-speech' || event.error === 'aborted') {
+      // Common in continuous mode — restarted via onend.
+    } else if (event.error === 'network') {
+      handlers.onError?.(
+        'Speech service network error. Check connection and try again.',
+      )
     } else {
       handlers.onError?.(`Speech recognition failed: ${event.error}`)
     }
   }
 
   recognition.onend = () => {
+    // Result buffer clears when recognition restarts.
+    processedFinalCount = 0
     handlers.onEnd?.()
   }
 

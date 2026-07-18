@@ -1,4 +1,4 @@
-import type { WordState } from '../types'
+import type { TestMode, WordState } from '../types'
 import { ConfigBar } from './ConfigBar'
 import { LiveStats } from './LiveStats'
 import { Words } from './Words'
@@ -6,8 +6,12 @@ import { Words } from './Words'
 interface TestScreenProps {
   words: WordState[]
   wordIndex: number
+  mode: TestMode
   durationSec: number
+  customDuration: string
+  isCustomDuration: boolean
   timeLeftSec: number
+  elapsedSec: number
   wpm: number
   accuracy: number
   playing: boolean
@@ -15,7 +19,10 @@ interface TestScreenProps {
   listening: boolean
   supported: boolean
   error: string | null
+  onModeChange: (mode: TestMode) => void
   onDurationChange: (sec: number) => void
+  onCustomDurationChange: (value: string) => void
+  onSelectCustom: () => void
   onStart: () => void
   onRestart: () => void
 }
@@ -23,8 +30,12 @@ interface TestScreenProps {
 export function TestScreen({
   words,
   wordIndex,
+  mode,
   durationSec,
+  customDuration,
+  isCustomDuration,
   timeLeftSec,
+  elapsedSec,
   wpm,
   accuracy,
   playing,
@@ -32,7 +43,10 @@ export function TestScreen({
   listening,
   supported,
   error,
+  onModeChange,
   onDurationChange,
+  onCustomDurationChange,
+  onSelectCustom,
   onStart,
   onRestart,
 }: TestScreenProps) {
@@ -40,21 +54,32 @@ export function TestScreen({
     <section className={`test-screen ${focused ? 'focused' : ''}`}>
       {!playing && (
         <ConfigBar
+          mode={mode}
           durationSec={durationSec}
-          onDurationChange={onDurationChange}
+          customDuration={customDuration}
+          isCustomDuration={isCustomDuration}
           disabled={playing}
+          onModeChange={onModeChange}
+          onDurationChange={onDurationChange}
+          onCustomDurationChange={onCustomDurationChange}
+          onSelectCustom={onSelectCustom}
         />
       )}
 
       <LiveStats
-        timeLeftSec={timeLeftSec}
+        timeLeftSec={mode === 'time' ? timeLeftSec : elapsedSec}
         wpm={wpm}
         accuracy={accuracy}
         visible={playing}
+        showAsElapsed={mode === 'phrase'}
       />
 
       <div className="typing-test">
-        <Words words={words} wordIndex={wordIndex} focused={focused || playing} />
+        <Words
+          words={words}
+          wordIndex={wordIndex}
+          focused={focused || playing}
+        />
 
         {!playing && (
           <button
@@ -64,13 +89,18 @@ export function TestScreen({
             disabled={!supported}
           >
             {supported
-              ? 'Click here to speak'
+              ? mode === 'phrase'
+                ? 'Click to race a tongue twister'
+                : 'Click here to speak'
               : 'Use Chrome for speech recognition'}
           </button>
         )}
 
+        {playing && listening && (
+          <p className="listening-hint live">listening — keep talking</p>
+        )}
         {playing && !listening && !error && (
-          <p className="listening-hint">Starting microphone…</p>
+          <p className="listening-hint">reconnecting mic…</p>
         )}
       </div>
 

@@ -5,7 +5,8 @@ export interface LetterState {
   status: LetterStatus
 }
 
-export type WordStatus = 'pending' | 'active' | 'typed' | 'error'
+/** preview = live soft match from interim speech (not yet finalized). */
+export type WordStatus = 'pending' | 'active' | 'preview' | 'typed' | 'error'
 
 export interface WordState {
   expected: string
@@ -14,7 +15,6 @@ export interface WordState {
   status: WordStatus
 }
 
-/** Completed word attempt — used for end-of-round review. */
 export interface PhraseAttempt {
   prompt: string
   transcript: string
@@ -26,9 +26,7 @@ export interface PhraseAttempt {
 }
 
 export interface RoundStats {
-  /** Monkeytype-style net WPM: (correctChars / 5) / minutes */
   netWpm: number
-  /** Raw WPM: (all typed chars / 5) / minutes */
   rawWpm: number
   accuracy: number
   bestStreak: number
@@ -41,8 +39,12 @@ export interface RoundStats {
 
 export type GamePhase = 'idle' | 'playing' | 'finished'
 
+/** time = timed word stream; phrase = one tongue twister / long phrase. */
+export type TestMode = 'time' | 'phrase'
+
 export interface GameState {
   phase: GamePhase
+  mode: TestMode
   words: WordState[]
   wordIndex: number
   attempts: PhraseAttempt[]

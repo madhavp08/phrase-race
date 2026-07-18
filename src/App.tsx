@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ResultsScreen, TestScreen } from './components'
-import { GameEngine, buildWordList, createWordState } from './core'
+import {
+  GameEngine,
+  buildWordList,
+  createWordState,
+  pickTongueTwister,
+} from './core'
 import { isSpeechRecognitionSupported } from './speech/recognition'
 import { useSpeechRecognition } from './speech/useSpeechRecognition'
-import type { GamePhase, PhraseAttempt, RoundStats, WordState } from './types'
+import type {
+  GamePhase,
+  PhraseAttempt,
+  RoundStats,
+  TestMode,
+  WordState,
+} from './types'
 import './App.css'
 
 const emptyStats: RoundStats = {
@@ -18,11 +29,19 @@ const emptyStats: RoundStats = {
   incorrectWords: 0,
 }
 
-function previewWordList(): WordState[] {
-  return buildWordList(220).map((word, index) => ({
+function previewWords(mode: TestMode): WordState[] {
+  const list = mode === 'phrase' ? pickTongueTwister() : buildWordList(220)
+  return list.map((word, index) => ({
     ...createWordState(word),
     status: index === 0 ? 'active' : 'pending',
   }))
+}
+
+function resolveDuration(isCustom: boolean, custom: string, preset: number): number {
+  if (!isCustom) return preset
+  const parsed = Number.parseInt(custom, 10)
+  if (!Number.isFinite(parsed)) return 60
+  return Math.min(600, Math.max(5, parsed))
 }
 
 function App() {
@@ -30,16 +49,27 @@ function App() {
   const roundTimerRef = useRef<number | null>(null)
   const tickTimerRef = useRef<number | null>(null)
   const tabArmedRef = useRef(false)
+  const phaseRef = useRef<GamePhase>('idle')
 
   const [phase, setPhase] = useState<GamePhase>('idle')
+  const [mode, setMode] = useState<TestMode>('time')
   const [durationSec, setDurationSec] = useState(60)
-  const [words, setWords] = useState<WordState[]>(() => previewWordList())
+  const [isCustomDuration, setIsCustomDuration] = useState(false)
+  const [customDuration, setCustomDuration] = useState('90')
+  const [words, setWords] = useState<WordState[]>(() => previewWords('time'))
   const [wordIndex, setWordIndex] = useState(0)
   const [attempts, setAttempts] = useState<PhraseAttempt[]>([])
   const [stats, setStats] = useState<RoundStats>(emptyStats)
   const [timeLeftSec, setTimeLeftSec] = useState(60)
+  const [elapsedSec, setElapsedSec] = useState(0)
   const [startError, setStartError] = useState<string | null>(null)
   const [supported] = useState(() => isSpeechRecognitionSupported())
+
+  const activeDuration = resolveDuration(
+    isCustomDuration,
+    customDuration,
+    durationSec,
+  )
 
   const syncFromEngine = useCallback(() => {
     const state = engineRef.current.getState()
@@ -64,34 +94,41 @@ function App() {
     clearTimers()
     engineRef.current.finishRound()
     syncFromEngine()
+    phaseRef.current = 'finished'
     setPhase('finished')
   }, [clearTimers, syncFromEngine])
 
-  const prepareIdle = useCallback((seconds: number) => {
-    setWords(previewWordList())
-    setWordIndex(0)
-    setAttempts([])
-    setStats(emptyStats)
-    setTimeLeftSec(seconds)
-  }, [])
+  const prepareIdle = useCallback(
+    (nextMode: TestMode, seconds: number) => {
+      setWords(previewWords(nextMode))
+      setWordIndex(0)
+      setAttempts([])
+      setStats(emptyStats)
+      setTimeLeftSec(seconds)
+      setElapsedSec(0)
+    },
+    [],
+  )
 
-  const handleFinalTranscript = useCallback(
-    (transcript: string) => {
-      if (phase !== 'playing') return
-      const state = engineRef.current.applySpeech(transcript, '')
+  // Use refs so speech callbacks never go stale mid-utterance.
+  const handleLiveHypothesis = useCallback(
+    (hypothesis: string) => {
+      if (phaseRef.current !== 'playing') return
+      const state = engineRef.current.applyLive(hypothesis)
       syncFromEngine()
       if (state.phase === 'finished') finishRound()
     },
-    [finishRound, phase, syncFromEngine],
+    [finishRound, syncFromEngine],
   )
 
-  const handleInterimTranscript = useCallback(
+  const handleFinalTranscript = useCallback(
     (transcript: string) => {
-      if (phase !== 'playing') return
-      engineRef.current.applySpeech('', transcript)
+      if (phaseRef.current !== 'playing') return
+      const state = engineRef.current.applyFinal(transcript)
       syncFromEngine()
+      if (state.phase === 'finished') finishRound()
     },
-    [phase, syncFromEngine],
+    [finishRound, syncFromEngine],
   )
 
   const {
@@ -102,7 +139,7 @@ function App() {
     abort,
   } = useSpeechRecognition({
     onFinalTranscript: handleFinalTranscript,
-    onInterimTranscript: handleInterimTranscript,
+    onLiveHypothesis: handleLiveHypothesis,
     enabled: phase === 'playing',
   })
 
@@ -119,29 +156,45 @@ function App() {
     clearTimers()
     abort()
 
+    const seconds = activeDuration
     engineRef.current = new GameEngine()
-    engineRef.current.startRound(durationSec * 1000)
+    engineRef.current.startRound(
+      mode === 'time' ? seconds * 1000 : 0,
+      mode,
+    )
     syncFromEngine()
+    phaseRef.current = 'playing'
     setPhase('playing')
-    setTimeLeftSec(durationSec)
+    setTimeLeftSec(seconds)
+    setElapsedSec(0)
 
     const startedAt = performance.now()
-    const durationMs = durationSec * 1000
 
-    roundTimerRef.current = window.setTimeout(() => {
-      finishRound()
-    }, durationMs)
+    if (mode === 'time') {
+      const durationMs = seconds * 1000
+      roundTimerRef.current = window.setTimeout(() => {
+        finishRound()
+      }, durationMs)
 
-    tickTimerRef.current = window.setInterval(() => {
-      const elapsed = performance.now() - startedAt
-      setTimeLeftSec(Math.max(0, Math.ceil((durationMs - elapsed) / 1000)))
-      setStats(engineRef.current.getStats())
-    }, 200)
+      tickTimerRef.current = window.setInterval(() => {
+        const elapsed = performance.now() - startedAt
+        setTimeLeftSec(Math.max(0, Math.ceil((durationMs - elapsed) / 1000)))
+        setElapsedSec(Math.floor(elapsed / 1000))
+        setStats(engineRef.current.getStats())
+      }, 100)
+    } else {
+      tickTimerRef.current = window.setInterval(() => {
+        const elapsed = performance.now() - startedAt
+        setElapsedSec(Math.floor(elapsed / 1000))
+        setStats(engineRef.current.getStats())
+      }, 100)
+    }
   }, [
     abort,
+    activeDuration,
     clearTimers,
-    durationSec,
     finishRound,
+    mode,
     requestPermission,
     setSpeechError,
     syncFromEngine,
@@ -150,17 +203,25 @@ function App() {
   const restart = useCallback(() => {
     clearTimers()
     abort()
+    phaseRef.current = 'idle'
     setPhase('idle')
     setStartError(null)
     setSpeechError(null)
-    prepareIdle(durationSec)
-  }, [abort, clearTimers, durationSec, prepareIdle, setSpeechError])
+    prepareIdle(mode, activeDuration)
+  }, [
+    abort,
+    activeDuration,
+    clearTimers,
+    mode,
+    prepareIdle,
+    setSpeechError,
+  ])
 
   useEffect(() => {
     if (phase === 'idle') {
-      prepareIdle(durationSec)
+      prepareIdle(mode, activeDuration)
     }
-  }, [durationSec, phase, prepareIdle])
+  }, [activeDuration, mode, phase, prepareIdle])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -196,12 +257,16 @@ function App() {
     <div className="app">
       <header className={`top-header ${phase === 'playing' ? 'dimmed' : ''}`}>
         <div className="logo">
-          <span className="logo-icon" aria-hidden="true">
-            ◆
+          <span className="logo-mark" aria-hidden="true">
+            <span className="logo-wave" />
+            <span className="logo-wave" />
+            <span className="logo-wave" />
           </span>
-          <span className="logo-text">phraserace</span>
+          <span className="logo-text">
+            phrase<span className="logo-accent">race</span>
+          </span>
         </div>
-        <p className="logo-sub">speech</p>
+        <p className="logo-sub">speak the stream</p>
       </header>
 
       <main className="content">
@@ -209,15 +274,20 @@ function App() {
           <ResultsScreen
             stats={stats}
             attempts={attempts}
-            durationSec={durationSec}
+            durationSec={mode === 'time' ? activeDuration : elapsedSec}
+            mode={mode}
             onPlayAgain={restart}
           />
         ) : (
           <TestScreen
             words={words}
             wordIndex={wordIndex}
+            mode={mode}
             durationSec={durationSec}
+            customDuration={customDuration}
+            isCustomDuration={isCustomDuration}
             timeLeftSec={timeLeftSec}
+            elapsedSec={elapsedSec}
             wpm={stats.netWpm}
             accuracy={stats.accuracy}
             playing={phase === 'playing'}
@@ -225,7 +295,13 @@ function App() {
             listening={listening}
             supported={supported}
             error={startError ?? speechError}
-            onDurationChange={setDurationSec}
+            onModeChange={setMode}
+            onDurationChange={(sec) => {
+              setIsCustomDuration(false)
+              setDurationSec(sec)
+            }}
+            onCustomDurationChange={setCustomDuration}
+            onSelectCustom={() => setIsCustomDuration(true)}
             onStart={startRound}
             onRestart={restart}
           />

@@ -1,0 +1,23 @@
+/** Longer speech challenges — tongue twisters and rhythmic phrases. */
+export const TONGUE_TWISTERS: string[] = [
+  'she sells seashells by the seashore',
+  'how much wood would a woodchuck chuck if a woodchuck could chuck wood',
+  'peter piper picked a peck of pickled peppers',
+  'red leather yellow leather red leather yellow leather',
+  'unique new york unique new york unique new york',
+  'eleven benevolent elephants evenly elevated',
+  'fresh fried fish fish fresh fried fish fresh fried',
+  'six sticky skeletons six sticky skeletons',
+  'which wristwatches are swiss wristwatches',
+  'fuzzy wuzzy was a bear fuzzy wuzzy had no hair',
+  'betty bought a bit of better butter',
+  'irish wristwatch swiss wristwatch',
+  'pad kid poured curd pulled cold',
+  'the thirty three thieves thought that they thrilled the throne',
+  'can you can a can as a canner can can a can',
+  'i saw a kitten eating chicken in the kitchen',
+  'snap crackle pop snap crackle pop snap crackle pop',
+  'black background brown background black background',
+  'good blood bad blood good blood bad blood',
+  'truly rural truly rural truly rural truly rural',
+]

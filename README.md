@@ -2,7 +2,7 @@
 
 [Monkeytype](https://github.com/monkeytypegame/monkeytype) for speech-to-text.
 
-Speak continuously through a word stream. Letters turn correct/incorrect as Chrome’s Web Speech API recognizes what you say — same live feedback loop as typing on Monkeytype, adapted for voice.
+Speak continuously through a word stream. A **live agent** paints letter mistakes from interim speech as you talk; a **commit agent** finalizes words (and soft-commits when the next word starts — the speech equivalent of Space).
 
 ## Stack
 
@@ -22,12 +22,10 @@ Open in **Chrome**, click **Click here to speak**, allow the microphone, and kee
 
 ## How it works
 
-1. A continuous word stream fills the screen (3-line viewport)
-2. Speech recognition runs continuously (`continuous: true`)
-3. Interim results color the active word letter-by-letter
-4. Final words commit as correct or incorrect and advance the caret
-5. Timer modes: 15 / 30 / 60 seconds
-6. Results show wpm, acc, raw, characters, streak, and word history
+1. Continuous word stream (or a tongue-twister in **phrase** mode)
+2. Dual agents: live interim coloring + commit/soft-commit
+3. Time: 15 / 30 / 60 / **custom** — or phrase mode (no timer)
+4. Results: wpm, acc, raw, characters, streak, word history
 
 ## Scripts
 

@@ -6,47 +6,68 @@ describe('GameEngine', () => {
     vi.spyOn(performance, 'now').mockReturnValue(0)
   })
 
-  it('starts a round with a word stream', () => {
+  it('starts a timed round with a word stream', () => {
     const engine = new GameEngine()
-    engine.startRound(60_000, 20)
+    engine.startRound(60_000, 'time', 20)
     expect(engine.getState().phase).toBe('playing')
+    expect(engine.getState().mode).toBe('time')
     expect(engine.getState().words.length).toBe(20)
     expect(engine.getState().words[0].status).toBe('active')
   })
 
-  it('advances through words as speech arrives', () => {
+  it('starts a phrase round with a tongue twister', () => {
     const engine = new GameEngine()
-    engine.startRound(60_000, 10)
+    engine.startRound(0, 'phrase')
+    expect(engine.getState().mode).toBe('phrase')
+    expect(engine.getState().words.length).toBeGreaterThan(3)
+    expect(engine.getState().durationMs).toBe(0)
+  })
+
+  it('live agent soft-commits when the next word begins', () => {
+    const engine = new GameEngine()
+    engine.startRound(60_000, 'time', 10)
     const first = engine.getState().words[0].expected
     const second = engine.getState().words[1].expected
 
-    engine.applySpeech(first, '')
+    engine.applyLive(`${first} ${second.slice(0, 2)}`)
     expect(engine.getState().wordIndex).toBe(1)
-    expect(engine.getState().words[0].status).toBe('typed')
+    expect(['typed', 'error']).toContain(engine.getState().words[0].status)
     expect(engine.getState().words[1].status).toBe('active')
-
-    engine.applySpeech(second, '')
-    expect(engine.getState().wordIndex).toBe(2)
+    expect(
+      engine.getState().words[1].letters.some((l) => l.status === 'correct'),
+    ).toBe(true)
   })
 
-  it('previews interim speech on the active word', () => {
+  it('does not double-commit the same live words on repeat hypotheses', () => {
     const engine = new GameEngine()
-    engine.startRound(60_000, 5)
-    const expected = engine.getState().words[0].expected
-    const partial = expected.slice(0, Math.max(1, Math.floor(expected.length / 2)))
+    engine.startRound(60_000, 'time', 10)
+    const first = engine.getState().words[0].expected
 
-    engine.applySpeech('', partial)
-    const active = engine.getState().words[0]
-    expect(active.status).toBe('active')
-    expect(active.letters.some((l) => l.status === 'correct')).toBe(true)
-    expect(engine.getState().wordIndex).toBe(0)
+    engine.applyLive(`${first} op`)
+    engine.applyLive(`${first} ope`)
+    expect(engine.getState().wordIndex).toBe(1)
+    expect(engine.getState().attempts).toHaveLength(1)
+  })
+
+  it('reconciles finals with soft-committed live words', () => {
+    const engine = new GameEngine()
+    engine.startRound(60_000, 'time', 10)
+    const first = engine.getState().words[0].expected
+    const second = engine.getState().words[1].expected
+
+    engine.applyLive(`${first} ${second.slice(0, 1)}`)
+    expect(engine.getState().attempts).toHaveLength(1)
+
+    engine.applyFinal(`${first} ${second}`)
+    expect(engine.getState().attempts).toHaveLength(2)
+    expect(engine.getState().wordIndex).toBe(2)
   })
 
   it('finishes and returns stats', () => {
     const engine = new GameEngine()
-    engine.startRound(60_000, 5)
+    engine.startRound(60_000, 'time', 5)
     const first = engine.getState().words[0].expected
-    engine.applySpeech(first, '')
+    engine.applyFinal(first)
     vi.spyOn(performance, 'now').mockReturnValue(60_000)
     engine.finishRound()
     const stats = engine.getStats()

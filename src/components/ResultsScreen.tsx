@@ -1,10 +1,11 @@
-import type { PhraseAttempt, RoundStats } from '../types'
+import type { PhraseAttempt, RoundStats, TestMode } from '../types'
 import { AttemptReview } from './AttemptReview'
 
 interface ResultsScreenProps {
   stats: RoundStats
   attempts: PhraseAttempt[]
   durationSec: number
+  mode: TestMode
   onPlayAgain: () => void
 }
 
@@ -17,6 +18,7 @@ export function ResultsScreen({
   stats,
   attempts,
   durationSec,
+  mode,
   onPlayAgain,
 }: ResultsScreenProps) {
   return (
@@ -36,7 +38,7 @@ export function ResultsScreen({
         <div className="result-group">
           <div className="top">test type</div>
           <div className="bottom small">
-            time {durationSec}
+            {mode === 'phrase' ? 'phrase' : `time ${durationSec}`}
             <br />
             english
             <br />

@@ -48,6 +48,7 @@ export function Words({ words, wordIndex, focused }: WordsProps) {
                 isActive ? 'active' : '',
                 word.status === 'typed' ? 'typed' : '',
                 word.status === 'error' ? 'error' : '',
+                word.status === 'preview' ? 'preview' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}

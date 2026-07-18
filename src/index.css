@@ -1,18 +1,20 @@
-@import url('https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@300;400&family=Roboto+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@500;700;800&display=swap');
 
 :root {
-  /* Monkeytype serika_dark */
-  --bg-color: #323437;
-  --main-color: #e2b714;
-  --caret-color: #e2b714;
-  --sub-color: #646669;
-  --sub-alt-color: #2c2e31;
-  --text-color: #d1d0c5;
-  --error-color: #ca4754;
-  --error-extra-color: #7e2a33;
-  --roundness: 0.5rem;
-  --font: 'Roboto Mono', monospace;
-  --font-logo: 'Lexend Deca', sans-serif;
+  /* PhraseRace identity — cool ink + mint (not Monkeytype yellow/serika) */
+  --bg-color: #10141c;
+  --bg-glow: #1a2436;
+  --main-color: #3de0c5;
+  --main-strong: #2bc4ab;
+  --caret-color: #3de0c5;
+  --sub-color: #7b8494;
+  --sub-alt-color: #181e2a;
+  --text-color: #e8edf5;
+  --error-color: #ff6b8a;
+  --error-extra-color: #b83d57;
+  --roundness: 0.65rem;
+  --font: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-logo: 'Syne', sans-serif;
 
   --untyped-letter-color: var(--sub-color);
   --correct-letter-color: var(--text-color);
@@ -21,7 +23,10 @@
 
   font-family: var(--font);
   color: var(--text-color);
-  background: var(--bg-color);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, var(--bg-glow), transparent 55%),
+    radial-gradient(900px 500px at 100% 100%, #14201f 0%, transparent 45%),
+    var(--bg-color);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -42,12 +47,16 @@ body,
 body {
   margin: 0;
   min-width: 320px;
-  background: var(--bg-color);
+  background: transparent;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
 }
 
 button {
-  font: inherit;
-  color: inherit;
   background: none;
   border: 0;
   cursor: pointer;
