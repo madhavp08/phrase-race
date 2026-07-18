@@ -257,15 +257,16 @@ export class GameEngine {
   finishRound(): GameState {
     if (this.state.phase === 'idle') return this.getState()
 
-    const elapsedMs =
+    const actualElapsed =
       this.state.startedAt !== null
-        ? this.state.durationMs > 0
-          ? Math.min(
-              performance.now() - this.state.startedAt,
-              this.state.durationMs,
-            )
-          : performance.now() - this.state.startedAt
+        ? performance.now() - this.state.startedAt
         : this.state.elapsedMs
+
+    // Timed tests always score against the configured duration (Monkeytype).
+    const elapsedMs =
+      this.state.mode === 'time' && this.state.durationMs > 0
+        ? this.state.durationMs
+        : actualElapsed
 
     this.clearLivePreview()
     this.softCommitted = []
@@ -285,10 +286,14 @@ export class GameEngine {
   }
 
   getStats(): RoundStats {
-    const elapsedMs =
-      this.state.phase === 'playing' && this.state.startedAt !== null
-        ? performance.now() - this.state.startedAt
-        : this.state.elapsedMs
+    let elapsedMs: number
+    if (this.state.phase === 'playing' && this.state.startedAt !== null) {
+      elapsedMs = performance.now() - this.state.startedAt
+    } else if (this.state.mode === 'time' && this.state.durationMs > 0) {
+      elapsedMs = this.state.durationMs
+    } else {
+      elapsedMs = this.state.elapsedMs
+    }
 
     return calculateStatsFromWords(
       this.state.words,

@@ -5,7 +5,14 @@ export {
   calculateStatsFromWords,
   calculateBestStreak,
 } from './scoring'
-export { alignWord, createWordState, previewWord, commitWord } from './align'
+export {
+  alignWord,
+  createWordState,
+  previewWord,
+  commitWord,
+  countCharResults,
+} from './align'
+export { roundTo2 } from './scoring'
 export {
   GameEngine,
   buildWordList,

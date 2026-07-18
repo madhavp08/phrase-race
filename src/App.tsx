@@ -31,13 +31,16 @@ const emptyStats: RoundStats = {
   averageResponseTimeMs: 0,
   correctChars: 0,
   incorrectChars: 0,
+  extraChars: 0,
+  missedChars: 0,
   correctWords: 0,
   incorrectWords: 0,
 }
 
 function wordsFromPhrase(phrase: string): WordState[] {
   const list = tokenizeWords(phrase)
-  const fallback = list.length > 0 ? list : tokenizeWords(pickTongueTwisterText())
+  const fallback =
+    list.length > 0 ? list : tokenizeWords(pickTongueTwisterText())
   return fallback.map((word, index) => ({
     ...createWordState(word),
     status: index === 0 ? 'active' : 'pending',
@@ -70,15 +73,18 @@ function App() {
   const phaseRef = useRef<GamePhase>('idle')
   const startingRef = useRef(false)
   const micReadyRef = useRef(false)
+  const abortRef = useRef<() => void>(() => {})
 
   const [phase, setPhase] = useState<GamePhase>('idle')
   const [mode, setMode] = useState<TestMode>('time')
   const [durationSec, setDurationSec] = useState(30)
   const [isCustomDuration, setIsCustomDuration] = useState(false)
   const [customDuration, setCustomDuration] = useState('90')
-  const [customPhrase, setCustomPhrase] = useState(() => pickTongueTwisterText())
+  const [customPhrase, setCustomPhrase] = useState(() =>
+    pickTongueTwisterText(),
+  )
   const [words, setWords] = useState<WordState[]>(() =>
-    previewWords('time', pickTongueTwisterText()),
+    previewWords('time', ''),
   )
   const [wordIndex, setWordIndex] = useState(0)
   const [attempts, setAttempts] = useState<PhraseAttempt[]>([])
@@ -116,6 +122,22 @@ function App() {
     }
   }, [])
 
+  const goHome = useCallback(() => {
+    clearTimers()
+    abortRef.current()
+    engineRef.current.reset()
+    phaseRef.current = 'idle'
+    setPhase('idle')
+    setStartError(null)
+    setLeaderboardOpen(false)
+    setWords(previewWords(mode, customPhrase))
+    setWordIndex(0)
+    setAttempts([])
+    setStats(emptyStats)
+    setTimeLeftSec(activeDuration)
+    setElapsedSec(0)
+  }, [activeDuration, clearTimers, customPhrase, mode])
+
   const finishRound = useCallback(() => {
     clearTimers()
     const finished = engineRef.current.finishRound()
@@ -145,7 +167,6 @@ function App() {
       setStats(emptyStats)
       setTimeLeftSec(seconds)
       setElapsedSec(0)
-      setLastRank(null)
     },
     [],
   )
@@ -181,6 +202,10 @@ function App() {
     onLiveHypothesis: handleLiveHypothesis,
     enabled: phase === 'playing',
   })
+
+  useEffect(() => {
+    abortRef.current = abort
+  }, [abort])
 
   const startRound = useCallback(async () => {
     if (startingRef.current) return
@@ -256,11 +281,6 @@ function App() {
     syncFromEngine,
   ])
 
-  /** Instant loop: never dump back to a click-to-start gate. */
-  const nextTest = useCallback(() => {
-    void startRound()
-  }, [startRound])
-
   const shufflePhrase = useCallback(() => {
     const next = pickTongueTwisterText()
     setCustomPhrase(next)
@@ -283,25 +303,33 @@ function App() {
         return
       }
 
-      if (event.key !== 'Tab') return
-      // Don't steal tab from phrase input / custom time field.
       const target = event.target as HTMLElement | null
-      if (
-        target &&
+      const typingInField =
+        !!target &&
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable)
-      ) {
+
+      if (event.key === 'Tab') {
+        if (typingInField) return
+        event.preventDefault()
+        goHome()
         return
       }
 
-      event.preventDefault()
-      void nextTest()
+      if (
+        event.key === 'Enter' &&
+        phaseRef.current === 'idle' &&
+        !typingInField
+      ) {
+        event.preventDefault()
+        void startRound()
+      }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [leaderboardOpen, nextTest])
+  }, [goHome, leaderboardOpen, startRound])
 
   useEffect(() => {
     return () => {
@@ -314,20 +342,33 @@ function App() {
     <div className="app">
       <header className={`top-header ${phase === 'playing' ? 'dimmed' : ''}`}>
         <div className="header-left">
-          <div className="logo">
+          <button
+            type="button"
+            className="logo"
+            onClick={goHome}
+            title="Home"
+          >
             <span className="logo-mark" aria-hidden="true">
               <span className="logo-wave" />
               <span className="logo-wave" />
               <span className="logo-wave" />
             </span>
-            <div className="logo-stack">
+            <span className="logo-stack">
               <span className="logo-tag">speak see</span>
               <span className="logo-text">
                 phrase<span className="logo-accent">race</span>
               </span>
-            </div>
-          </div>
+            </span>
+          </button>
           <nav className="header-nav" aria-label="Main">
+            <button
+              type="button"
+              className="nav-ico"
+              title="Home"
+              onClick={goHome}
+            >
+              ⌨
+            </button>
             <button
               type="button"
               className="nav-ico"
@@ -351,7 +392,7 @@ function App() {
             durationSec={mode === 'time' ? activeDuration : elapsedSec}
             mode={mode}
             rank={lastRank}
-            onPlayAgain={nextTest}
+            onPlayAgain={goHome}
             onOpenLeaderboard={() => {
               setBoard(getLeaderboard())
               setLeaderboardOpen(true)
@@ -389,8 +430,8 @@ function App() {
             onSelectCustomDuration={() => setIsCustomDuration(true)}
             onCustomPhraseChange={setCustomPhrase}
             onShufflePhrase={shufflePhrase}
-            onStart={nextTest}
-            onRestart={nextTest}
+            onStart={() => void startRound()}
+            onGoHome={goHome}
           />
         )}
       </main>

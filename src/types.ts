@@ -26,13 +26,18 @@ export interface PhraseAttempt {
 }
 
 export interface RoundStats {
+  /** Net WPM — (correctChars / 5) / minutes (Monkeytype wpm) */
   netWpm: number
+  /** Raw WPM — (typedChars / 5) / minutes (Monkeytype raw) */
   rawWpm: number
+  /** correct / (correct + incorrect + extra + missed) * 100 */
   accuracy: number
   bestStreak: number
   averageResponseTimeMs: number
   correctChars: number
   incorrectChars: number
+  extraChars: number
+  missedChars: number
   correctWords: number
   incorrectWords: number
 }

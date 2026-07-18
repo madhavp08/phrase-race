@@ -27,7 +27,7 @@ interface TestScreenProps {
   onCustomPhraseChange: (value: string) => void
   onShufflePhrase: () => void
   onStart: () => void
-  onRestart: () => void
+  onGoHome: () => void
 }
 
 export function TestScreen({
@@ -54,7 +54,7 @@ export function TestScreen({
   onCustomPhraseChange,
   onShufflePhrase,
   onStart,
-  onRestart,
+  onGoHome,
 }: TestScreenProps) {
   return (
     <section className={`test-screen ${focused ? 'focused' : ''}`}>
@@ -84,16 +84,23 @@ export function TestScreen({
       />
 
       <div className="typing-test">
+        <div className="lang-row" aria-hidden="true">
+          <span className="lang-pill">english</span>
+        </div>
+
         <Words words={words} wordIndex={wordIndex} focused={true} />
 
         {!playing && (
           <p className="start-hint">
             {supported ? (
               <>
-                <span className="keychip">tab</span> to start
-                <button type="button" className="text-btn" onClick={onStart}>
-                  or click
+                <button type="button" className="text-btn primary" onClick={onStart}>
+                  click to speak
                 </button>
+                <span className="hint-or">or</span>
+                <span>
+                  press <span className="keychip">enter</span>
+                </span>
               </>
             ) : (
               'Use Chrome for speech recognition'
@@ -114,14 +121,14 @@ export function TestScreen({
       <button
         type="button"
         className="restart-btn"
-        onClick={onRestart}
-        title="Restart test"
+        onClick={onGoHome}
+        title="Back to home"
       >
         ↻
       </button>
 
       <p className="keytip">
-        <span>tab</span> — next test
+        <span>tab</span> — home
       </p>
     </section>
   )

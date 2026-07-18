@@ -44,7 +44,7 @@ export function ResultsScreen({
           className="rank-banner"
           onClick={onOpenLeaderboard}
         >
-          ♛ you placed #{rank} on the leaderboard
+          ♛ placed #{rank} — view leaderboard
         </button>
       )}
 
@@ -65,8 +65,22 @@ export function ResultsScreen({
         </div>
         <div className="result-group">
           <div className="top">characters</div>
-          <div className="bottom small">
-            {stats.correctChars}/{stats.incorrectChars}
+          <div className="bottom small chars">
+            <span className="c-ok" title="correct">
+              {stats.correctChars}
+            </span>
+            <span className="c-sep">/</span>
+            <span className="c-bad" title="incorrect">
+              {stats.incorrectChars}
+            </span>
+            <span className="c-sep">/</span>
+            <span className="c-extra" title="extra">
+              {stats.extraChars}
+            </span>
+            <span className="c-sep">/</span>
+            <span className="c-miss" title="missed">
+              {stats.missedChars}
+            </span>
           </div>
         </div>
         <div className="result-group">
@@ -90,7 +104,7 @@ export function ResultsScreen({
           type="button"
           className="icon-btn"
           onClick={onPlayAgain}
-          title="Next test"
+          title="Back to home"
         >
           <span aria-hidden="true">↻</span>
           <span>next test</span>
@@ -102,7 +116,7 @@ export function ResultsScreen({
       </div>
 
       <p className="keytip results-tip">
-        <span>tab</span> — next test
+        <span>tab</span> — home
       </p>
 
       <AttemptReview attempts={attempts} />

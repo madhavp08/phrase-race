@@ -55,7 +55,6 @@ export function getLeaderboard(): LeaderboardEntry[] {
   return merged
     .sort((a, b) => b.wpm - a.wpm || b.accuracy - a.accuracy)
     .slice(0, 10)
-    .map((entry, index) => ({ ...entry, id: `${entry.id}-${index}` }))
 }
 
 export interface RankResult {
@@ -97,15 +96,16 @@ export function tryRankScore(
     isYou: true,
   }
 
-  const saved = readSavedYou().filter((e) => e.name === 'you')
-  // Keep best personal runs (up to 3) so demos feel sticky.
+  const saved = readSavedYou()
   const nextSaved = [...saved, entry]
-    .sort((a, b) => b.wpm - a.wpm)
+    .sort((a, b) => b.wpm - a.wpm || b.accuracy - a.accuracy)
     .slice(0, 3)
   writeSavedYou(nextSaved)
 
   const board = getLeaderboard()
-  const rankIndex = board.findIndex((e) => e.isYou && e.wpm === roundedWpm)
+  const rankIndex = board.findIndex(
+    (e) => e.isYou && e.wpm === roundedWpm && e.accuracy === roundedAcc,
+  )
   return {
     ranked: true,
     rank: rankIndex >= 0 ? rankIndex + 1 : null,

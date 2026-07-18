@@ -24,23 +24,38 @@ export function Leaderboard({
         onClick={(event) => event.stopPropagation()}
       >
         <header className="lb-header">
-          <h2>
-            <span aria-hidden="true">♛</span> leaderboard
-          </h2>
+          <div>
+            <p className="lb-kicker">all-time</p>
+            <h2>
+              <span className="lb-crown" aria-hidden="true">
+                ♛
+              </span>
+              leaderboard
+            </h2>
+          </div>
           <button type="button" className="lb-close" onClick={onClose}>
             esc
           </button>
         </header>
-        <p className="lb-sub">local demo board — no account needed</p>
+
+        <div className="lb-cols" aria-hidden="true">
+          <span>#</span>
+          <span>name</span>
+          <span>mode</span>
+          <span>wpm</span>
+          <span>acc</span>
+        </div>
+
         <ol className="lb-list">
           {board.map((entry, index) => {
             const rank = index + 1
             return (
               <li
-                key={entry.id}
+                key={`${entry.id}-${rank}`}
                 className={[
                   entry.isYou ? 'you' : '',
                   highlightRank === rank ? 'flash' : '',
+                  rank <= 3 ? `top-${rank}` : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -48,7 +63,7 @@ export function Leaderboard({
                 <span className="lb-rank">{rank}</span>
                 <span className="lb-name">
                   {entry.name}
-                  {entry.isYou ? ' (you)' : ''}
+                  {entry.isYou ? <em>you</em> : null}
                 </span>
                 <span className="lb-mode">{entry.modeLabel}</span>
                 <span className="lb-wpm">{entry.wpm}</span>
@@ -57,6 +72,8 @@ export function Leaderboard({
             )
           })}
         </ol>
+
+        <p className="lb-foot">demo board · scores saved on this device</p>
       </div>
     </div>
   )
