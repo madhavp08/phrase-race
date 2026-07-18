@@ -30,10 +30,12 @@ export function buildWordList(count = 220): string[] {
   return words.slice(0, count)
 }
 
+export function pickTongueTwisterText(): string {
+  return TONGUE_TWISTERS[Math.floor(Math.random() * TONGUE_TWISTERS.length)]
+}
+
 export function pickTongueTwister(): string[] {
-  const phrase =
-    TONGUE_TWISTERS[Math.floor(Math.random() * TONGUE_TWISTERS.length)]
-  return tokenizeWords(phrase)
+  return tokenizeWords(pickTongueTwisterText())
 }
 
 function createIdleState(
@@ -68,9 +70,14 @@ export class GameEngine {
     durationMs = 60_000,
     mode: TestMode = 'time',
     wordCount = 220,
+    customWords?: string[],
   ): GameState {
     const list =
-      mode === 'phrase' ? pickTongueTwister() : buildWordList(wordCount)
+      mode === 'custom'
+        ? customWords && customWords.length > 0
+          ? customWords
+          : pickTongueTwister()
+        : buildWordList(wordCount)
     const words = list.map((word) => createWordState(word))
     if (words[0]) words[0] = { ...words[0], status: 'active' }
 
@@ -84,7 +91,7 @@ export class GameEngine {
       attempts: [],
       startedAt: performance.now(),
       elapsedMs: 0,
-      durationMs: mode === 'phrase' ? 0 : durationMs,
+      durationMs: mode === 'custom' ? 0 : durationMs,
       currentStreak: 0,
       bestStreak: 0,
       correctChars: 0,

@@ -6,7 +6,9 @@ interface ResultsScreenProps {
   attempts: PhraseAttempt[]
   durationSec: number
   mode: TestMode
+  rank: number | null
   onPlayAgain: () => void
+  onOpenLeaderboard: () => void
 }
 
 function fmt(value: number, digits = 0): string {
@@ -19,7 +21,9 @@ export function ResultsScreen({
   attempts,
   durationSec,
   mode,
+  rank,
   onPlayAgain,
+  onOpenLeaderboard,
 }: ResultsScreenProps) {
   return (
     <section className="results">
@@ -34,11 +38,21 @@ export function ResultsScreen({
         </div>
       </div>
 
+      {rank !== null && (
+        <button
+          type="button"
+          className="rank-banner"
+          onClick={onOpenLeaderboard}
+        >
+          ♛ you placed #{rank} on the leaderboard
+        </button>
+      )}
+
       <div className="results-more">
         <div className="result-group">
           <div className="top">test type</div>
           <div className="bottom small">
-            {mode === 'phrase' ? 'phrase' : `time ${durationSec}`}
+            {mode === 'custom' ? 'custom' : `time ${durationSec}`}
             <br />
             english
             <br />
@@ -72,11 +86,24 @@ export function ResultsScreen({
       </div>
 
       <div className="results-actions">
-        <button type="button" className="icon-btn" onClick={onPlayAgain} title="Next test">
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={onPlayAgain}
+          title="Next test"
+        >
           <span aria-hidden="true">↻</span>
           <span>next test</span>
         </button>
+        <button type="button" className="icon-btn" onClick={onOpenLeaderboard}>
+          <span aria-hidden="true">♛</span>
+          <span>leaderboard</span>
+        </button>
       </div>
+
+      <p className="keytip results-tip">
+        <span>tab</span> — next test
+      </p>
 
       <AttemptReview attempts={attempts} />
     </section>

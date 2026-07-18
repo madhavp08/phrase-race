@@ -15,12 +15,23 @@ describe('GameEngine', () => {
     expect(engine.getState().words[0].status).toBe('active')
   })
 
-  it('starts a phrase round with a tongue twister', () => {
+  it('starts a custom round with a tongue twister', () => {
     const engine = new GameEngine()
-    engine.startRound(0, 'phrase')
-    expect(engine.getState().mode).toBe('phrase')
+    engine.startRound(0, 'custom')
+    expect(engine.getState().mode).toBe('custom')
     expect(engine.getState().words.length).toBeGreaterThan(3)
     expect(engine.getState().durationMs).toBe(0)
+  })
+
+  it('uses a provided custom phrase word list', () => {
+    const engine = new GameEngine()
+    engine.startRound(0, 'custom', 10, ['red', 'leather', 'yellow', 'leather'])
+    expect(engine.getState().words.map((w) => w.expected)).toEqual([
+      'red',
+      'leather',
+      'yellow',
+      'leather',
+    ])
   })
 
   it('live agent soft-commits when the next word begins', () => {

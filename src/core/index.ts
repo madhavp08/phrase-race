@@ -6,4 +6,9 @@ export {
   calculateBestStreak,
 } from './scoring'
 export { alignWord, createWordState, previewWord, commitWord } from './align'
-export { GameEngine, buildWordList, pickTongueTwister } from './game'
+export {
+  GameEngine,
+  buildWordList,
+  pickTongueTwister,
+  pickTongueTwisterText,
+} from './game'

@@ -22,10 +22,11 @@ Open in **Chrome**, click **Click here to speak**, allow the microphone, and kee
 
 ## How it works
 
-1. Continuous word stream (or a tongue-twister in **phrase** mode)
+1. Continuous word stream, or **custom** mode (editable tongue twister)
 2. Dual agents: live interim coloring + commit/soft-commit
-3. Time: 15 / 30 / 60 / **custom** — or phrase mode (no timer)
-4. Results: wpm, acc, raw, characters, streak, word history
+3. Time: 15 / 30 / 60 / wrench custom duration
+4. **Tab** instantly starts the next test (no click gate)
+5. Demo leaderboard (♛) — good runs place as “you”
 
 ## Scripts
 

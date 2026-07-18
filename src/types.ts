@@ -39,8 +39,8 @@ export interface RoundStats {
 
 export type GamePhase = 'idle' | 'playing' | 'finished'
 
-/** time = timed word stream; phrase = one tongue twister / long phrase. */
-export type TestMode = 'time' | 'phrase'
+/** time = timed word stream; custom = editable tongue twister / phrase. */
+export type TestMode = 'time' | 'custom'
 
 export interface GameState {
   phase: GamePhase

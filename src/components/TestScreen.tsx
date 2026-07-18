@@ -10,6 +10,7 @@ interface TestScreenProps {
   durationSec: number
   customDuration: string
   isCustomDuration: boolean
+  customPhrase: string
   timeLeftSec: number
   elapsedSec: number
   wpm: number
@@ -22,7 +23,9 @@ interface TestScreenProps {
   onModeChange: (mode: TestMode) => void
   onDurationChange: (sec: number) => void
   onCustomDurationChange: (value: string) => void
-  onSelectCustom: () => void
+  onSelectCustomDuration: () => void
+  onCustomPhraseChange: (value: string) => void
+  onShufflePhrase: () => void
   onStart: () => void
   onRestart: () => void
 }
@@ -34,6 +37,7 @@ export function TestScreen({
   durationSec,
   customDuration,
   isCustomDuration,
+  customPhrase,
   timeLeftSec,
   elapsedSec,
   wpm,
@@ -46,7 +50,9 @@ export function TestScreen({
   onModeChange,
   onDurationChange,
   onCustomDurationChange,
-  onSelectCustom,
+  onSelectCustomDuration,
+  onCustomPhraseChange,
+  onShufflePhrase,
   onStart,
   onRestart,
 }: TestScreenProps) {
@@ -58,11 +64,14 @@ export function TestScreen({
           durationSec={durationSec}
           customDuration={customDuration}
           isCustomDuration={isCustomDuration}
+          customPhrase={customPhrase}
           disabled={playing}
           onModeChange={onModeChange}
           onDurationChange={onDurationChange}
           onCustomDurationChange={onCustomDurationChange}
-          onSelectCustom={onSelectCustom}
+          onSelectCustomDuration={onSelectCustomDuration}
+          onCustomPhraseChange={onCustomPhraseChange}
+          onShufflePhrase={onShufflePhrase}
         />
       )}
 
@@ -71,29 +80,25 @@ export function TestScreen({
         wpm={wpm}
         accuracy={accuracy}
         visible={playing}
-        showAsElapsed={mode === 'phrase'}
+        showAsElapsed={mode === 'custom'}
       />
 
       <div className="typing-test">
-        <Words
-          words={words}
-          wordIndex={wordIndex}
-          focused={focused || playing}
-        />
+        <Words words={words} wordIndex={wordIndex} focused={true} />
 
         {!playing && (
-          <button
-            type="button"
-            className="focus-overlay"
-            onClick={onStart}
-            disabled={!supported}
-          >
-            {supported
-              ? mode === 'phrase'
-                ? 'Click to race a tongue twister'
-                : 'Click here to speak'
-              : 'Use Chrome for speech recognition'}
-          </button>
+          <p className="start-hint">
+            {supported ? (
+              <>
+                <span className="keychip">tab</span> to start
+                <button type="button" className="text-btn" onClick={onStart}>
+                  or click
+                </button>
+              </>
+            ) : (
+              'Use Chrome for speech recognition'
+            )}
+          </p>
         )}
 
         {playing && listening && (
@@ -116,7 +121,7 @@ export function TestScreen({
       </button>
 
       <p className="keytip">
-        <span>tab</span> + <span>enter</span> — restart test
+        <span>tab</span> — next test
       </p>
     </section>
   )
