@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAuthProtocol, buildDeepgramListenUrl } from './deepgramClient'
+import { buildAuthProtocols, buildDeepgramListenUrl } from './deepgramClient'
 import { TARGET_SAMPLE_RATE } from './mic'
 
 describe('buildDeepgramListenUrl', () => {
@@ -19,8 +19,11 @@ describe('buildDeepgramListenUrl', () => {
   })
 })
 
-describe('buildAuthProtocol', () => {
-  it('uses a single Bearer subprotocol string for browser WS auth', () => {
-    expect(buildAuthProtocol('abc.jwt.token')).toBe('Bearer abc.jwt.token')
+describe('buildAuthProtocols', () => {
+  it('uses two space-free subprotocols for browser WS auth', () => {
+    expect(buildAuthProtocols('abc.jwt.token')).toEqual([
+      'bearer',
+      'abc.jwt.token',
+    ])
   })
 })

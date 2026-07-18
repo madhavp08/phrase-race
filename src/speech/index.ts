@@ -3,7 +3,7 @@ export { requestMicrophonePermission, isMicrophoneSupported } from './mic'
 export {
   DeepgramSpeechSession,
   buildDeepgramListenUrl,
-  buildAuthProtocol,
+  buildAuthProtocols,
 } from './deepgramClient'
 export { TranscriptAssembler } from './transcriptAssembler'
 export type { SpeechConnectionState, SpeechHandlers } from './types'

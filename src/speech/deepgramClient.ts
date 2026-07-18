@@ -38,9 +38,15 @@ export function buildDeepgramListenUrl(): string {
   return `wss://api.deepgram.com/v1/listen?${params.toString()}`
 }
 
-/** Browser-safe WS auth: single subprotocol string (Deepgram + SDK guidance). */
-export function buildAuthProtocol(accessToken: string): string {
-  return `Bearer ${accessToken}`
+/**
+ * Browser-safe WS auth via Sec-WebSocket-Protocol.
+ * Must be TWO tokens — a single "Bearer <jwt>" string is invalid (spaces
+ * are not allowed in subprotocol names).
+ *
+ * Deepgram: temporary JWTs use ["bearer", jwt]; API keys use ["token", key].
+ */
+export function buildAuthProtocols(accessToken: string): string[] {
+  return ['bearer', accessToken]
 }
 
 export class DeepgramSpeechSession {
@@ -111,7 +117,7 @@ export class DeepgramSpeechSession {
       })
 
       const url = buildDeepgramListenUrl()
-      const socket = new WebSocket(url, [buildAuthProtocol(token)])
+      const socket = new WebSocket(url, buildAuthProtocols(token))
       socket.binaryType = 'arraybuffer'
       this.socket = socket
 

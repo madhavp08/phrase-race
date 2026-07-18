@@ -62,8 +62,8 @@ useSpeechRecognition → App → GameEngine.applyLive / applyFinal
 - `utterance_end_ms=1000`
 - `language=en-US`
 
-Auth over the browser WebSocket uses a **single** subprotocol: `Bearer <jwt>`
-(not `['bearer', token]` — that form breaks on some browsers/CDNs).
+Auth over the browser WebSocket uses subprotocols `['bearer', jwt]`  
+(RFC 6455 forbids spaces, so `"Bearer ${jwt}"` as one string is invalid).
 
 ## Gameplay shortcuts
 
