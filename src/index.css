@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@300;400&family=Roboto+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Monkeytype serika_dark */
+  --bg-color: #323437;
+  --main-color: #e2b714;
+  --caret-color: #e2b714;
+  --sub-color: #646669;
+  --sub-alt-color: #2c2e31;
+  --text-color: #d1d0c5;
+  --error-color: #ca4754;
+  --error-extra-color: #7e2a33;
+  --roundness: 0.5rem;
+  --font: 'Roboto Mono', monospace;
+  --font-logo: 'Lexend Deca', sans-serif;
+
+  --untyped-letter-color: var(--sub-color);
+  --correct-letter-color: var(--text-color);
+  --incorrect-letter-color: var(--error-color);
+  --extra-letter-color: var(--error-extra-color);
+
+  font-family: var(--font);
+  color: var(--text-color);
+  background: var(--bg-color);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.25;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--bg-color);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
