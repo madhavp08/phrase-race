@@ -27,8 +27,8 @@ export function buildDeepgramListenUrl(): string {
     channels: '1',
     interim_results: 'true',
     smart_format: 'true',
-    // Slightly snappier finals for short spoken words.
-    endpointing: '300',
+    // Snappier finals for short spoken words.
+    endpointing: '100',
     // Emit UtteranceEnd so we can flush trailing interim text.
     utterance_end_ms: '1000',
     filler_words: 'false',

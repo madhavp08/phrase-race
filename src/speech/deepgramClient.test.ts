@@ -13,7 +13,7 @@ describe('buildDeepgramListenUrl', () => {
     expect(url.searchParams.get('sample_rate')).toBe(String(TARGET_SAMPLE_RATE))
     expect(url.searchParams.get('interim_results')).toBe('true')
     expect(url.searchParams.get('smart_format')).toBe('true')
-    expect(url.searchParams.get('endpointing')).toBe('300')
+    expect(url.searchParams.get('endpointing')).toBe('100')
     expect(url.searchParams.get('utterance_end_ms')).toBe('1000')
     expect(url.searchParams.has('punctuate')).toBe(false)
   })
