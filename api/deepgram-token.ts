@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * Vercel serverless function equivalent of server/deepgramTokenPlugin.ts
  * (that plugin only runs under the Vite dev/preview server, not in a
