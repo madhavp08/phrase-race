@@ -190,27 +190,29 @@ export class GameEngine {
     const { completeWords, partialWord } = splitLiveHypothesis(hypothesis)
     const newCompletes = completeWords.slice(this.liveEpochComplete)
 
-    // Interim hypotheses are unstable. Only advance when exactly one new word
-    // boundary appears; sudden multi-word growth waits for the reliable final.
-    if (newCompletes.length === 1) {
+    // Interim hypotheses can suddenly grow by many words. Commit at most one
+    // per update so the cursor cannot skip ahead, but never advance the epoch
+    // past what we actually committed (or later finals / updates will misalign).
+    if (newCompletes.length > 0) {
       this.commitSpokenWord(newCompletes[0])
       this.softCommitted.push(normalizeText(newCompletes[0]))
+      this.liveEpochComplete += 1
     }
-    this.liveEpochComplete = completeWords.length
 
     this.paintLivePreview(partialWord)
     this.finalizeIfComplete()
     return this.getState()
   }
 
-  /** Commit agent — Chrome finalized segments, reconciled with soft-commits. */
+  /** Commit agent — finalized segments, reconciled with soft-commits. */
   applyFinal(transcript: string): GameState {
     if (this.state.phase !== 'playing') return this.getState()
 
     let finalWords = tokenizeWords(transcript)
 
-    // Finals correct interim text. A correction must reconcile the same spoken
-    // positions rather than commit them again and skip prompts.
+    // Soft-commits already advanced the prompt cursor. Consume that many final
+    // tokens (even if Deepgram corrected the text) so we never double-commit
+    // the same spoken positions.
     const reconciledCount = Math.min(
       finalWords.length,
       this.softCommitted.length,

@@ -97,7 +97,7 @@ describe('GameEngine', () => {
     expect(engine.getState().attempts).toHaveLength(2)
   })
 
-  it('does not advance for a suddenly long interim hypothesis', () => {
+  it('commits only one word from a suddenly long interim hypothesis', () => {
     const engine = new GameEngine()
     engine.startRound(60_000, 'time', 5, [
       'one',
@@ -109,7 +109,32 @@ describe('GameEngine', () => {
 
     engine.applyLive('one two three four f')
 
-    expect(engine.getState().wordIndex).toBe(0)
+    expect(engine.getState().wordIndex).toBe(1)
+    expect(engine.getState().attempts[0]?.transcript).toBe('one')
+  })
+
+  it('keeps later live words aligned after a multi-word interim burst', () => {
+    const engine = new GameEngine()
+    engine.startRound(60_000, 'time', 5, [
+      'one',
+      'two',
+      'three',
+      'four',
+      'five',
+    ])
+
+    engine.applyLive('one two three four f')
+    engine.applyLive('one two three four fi')
+    engine.applyFinal('one two three four five')
+
+    expect(engine.getState().wordIndex).toBe(5)
+    expect(engine.getState().attempts.map((a) => a.transcript)).toEqual([
+      'one',
+      'two',
+      'three',
+      'four',
+      'five',
+    ])
   })
 
   it('finishes and returns stats', () => {
