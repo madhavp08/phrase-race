@@ -34,6 +34,17 @@ describe('GameEngine', () => {
     ])
   })
 
+  it('uses a provided timed prompt list without reshuffling it', () => {
+    const engine = new GameEngine()
+    const prompts = ['shown', 'before', 'starting']
+
+    engine.startRound(60_000, 'time', prompts.length, prompts)
+
+    expect(engine.getState().words.map((word) => word.expected)).toEqual(
+      prompts,
+    )
+  })
+
   it('live agent soft-commits when the next word begins', () => {
     const engine = new GameEngine()
     engine.startRound(60_000, 'time', 10)
@@ -72,6 +83,33 @@ describe('GameEngine', () => {
     engine.applyFinal(`${first} ${second}`)
     expect(engine.getState().attempts).toHaveLength(2)
     expect(engine.getState().wordIndex).toBe(2)
+  })
+
+  it('does not double-advance when a final corrects an interim word', () => {
+    const engine = new GameEngine()
+    engine.startRound(60_000, 'time', 4, ['one', 'two', 'three', 'four'])
+
+    engine.applyLive('won t')
+    expect(engine.getState().wordIndex).toBe(1)
+
+    engine.applyFinal('one two')
+    expect(engine.getState().wordIndex).toBe(2)
+    expect(engine.getState().attempts).toHaveLength(2)
+  })
+
+  it('does not advance for a suddenly long interim hypothesis', () => {
+    const engine = new GameEngine()
+    engine.startRound(60_000, 'time', 5, [
+      'one',
+      'two',
+      'three',
+      'four',
+      'five',
+    ])
+
+    engine.applyLive('one two three four f')
+
+    expect(engine.getState().wordIndex).toBe(0)
   })
 
   it('finishes and returns stats', () => {

@@ -231,7 +231,7 @@
 }
 
 .word.error {
-  border-bottom-color: var(--text-color);
+  border-bottom-color: var(--error-color);
 }
 
 .word.preview {
@@ -561,14 +561,21 @@
 }
 
 .attempt-list .miss .attempt-expected {
-  color: var(--text-color);
+  color: var(--error-color);
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }
 
-.attempt-arrow,
 .attempt-heard {
   color: var(--sub-color);
+}
+
+.attempt-arrow {
+  color: var(--sub-color);
+}
+
+.attempt-list .miss .attempt-heard {
+  color: var(--error-extra-color);
 }
 
 .muted {

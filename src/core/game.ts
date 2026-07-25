@@ -70,13 +70,13 @@ export class GameEngine {
     durationMs = 60_000,
     mode: TestMode = 'time',
     wordCount = 220,
-    customWords?: string[],
+    promptWords?: string[],
   ): GameState {
     const list =
-      mode === 'custom'
-        ? customWords && customWords.length > 0
-          ? customWords
-          : pickTongueTwister()
+      promptWords && promptWords.length > 0
+        ? promptWords
+        : mode === 'custom'
+          ? pickTongueTwister()
         : buildWordList(wordCount)
     const words = list.map((word) => createWordState(word))
     if (words[0]) words[0] = { ...words[0], status: 'active' }
@@ -190,12 +190,13 @@ export class GameEngine {
     const { completeWords, partialWord } = splitLiveHypothesis(hypothesis)
     const newCompletes = completeWords.slice(this.liveEpochComplete)
 
-    for (const spoken of newCompletes) {
-      this.commitSpokenWord(spoken)
-      this.softCommitted.push(normalizeText(spoken))
-      this.liveEpochComplete += 1
-      if (this.state.wordIndex >= this.state.words.length) break
+    // Interim hypotheses are unstable. Only advance when exactly one new word
+    // boundary appears; sudden multi-word growth waits for the reliable final.
+    if (newCompletes.length === 1) {
+      this.commitSpokenWord(newCompletes[0])
+      this.softCommitted.push(normalizeText(newCompletes[0]))
     }
+    this.liveEpochComplete = completeWords.length
 
     this.paintLivePreview(partialWord)
     this.finalizeIfComplete()
@@ -208,22 +209,14 @@ export class GameEngine {
 
     let finalWords = tokenizeWords(transcript)
 
-    while (
-      finalWords.length > 0 &&
-      this.softCommitted.length > 0 &&
-      normalizeText(finalWords[0]) === this.softCommitted[0]
-    ) {
-      finalWords = finalWords.slice(1)
-      this.softCommitted = this.softCommitted.slice(1)
-    }
-
-    if (
-      finalWords.length > 0 &&
-      this.softCommitted.length > 0 &&
-      normalizeText(finalWords[0]) !== this.softCommitted[0]
-    ) {
-      this.softCommitted = []
-    }
+    // Finals correct interim text. A correction must reconcile the same spoken
+    // positions rather than commit them again and skip prompts.
+    const reconciledCount = Math.min(
+      finalWords.length,
+      this.softCommitted.length,
+    )
+    finalWords = finalWords.slice(reconciledCount)
+    this.softCommitted = this.softCommitted.slice(reconciledCount)
 
     for (const spoken of finalWords) {
       this.commitSpokenWord(spoken)

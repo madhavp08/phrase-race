@@ -8,8 +8,8 @@
   --caret-color: #ffffff;
   --sub-color: #5f5f5f;
   --text-color: #e8e8e8;
-  --error-color: #ffffff;
-  --error-extra-color: #9a9a9a;
+  --error-color: #ff5f67;
+  --error-extra-color: #b9434a;
   --roundness: 0.5rem;
   --font: 'IBM Plex Mono', ui-monospace, monospace;
 

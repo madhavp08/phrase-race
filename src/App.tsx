@@ -269,15 +269,16 @@ function App() {
       abort()
 
       const seconds = activeDuration
-      const customWords =
-        mode === 'custom' ? tokenizeWords(customPhrase) : undefined
+      // Start with exactly the prompts already visible on screen. Generating
+      // another shuffled list here makes the test change when Tab is pressed.
+      const promptWords = words.map((word) => word.expected)
 
       engineRef.current = new GameEngine()
       engineRef.current.startRound(
         mode === 'time' ? seconds * 1000 : 0,
         mode,
-        220,
-        customWords,
+        promptWords.length,
+        promptWords,
       )
       syncFromEngine()
       phaseRef.current = 'playing'
@@ -296,11 +297,11 @@ function App() {
     abort,
     activeDuration,
     clearTimers,
-    customPhrase,
     mode,
     requestPermission,
     setSpeechError,
     syncFromEngine,
+    words,
   ])
 
   const shufflePhrase = useCallback(() => {
