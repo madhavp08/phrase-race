@@ -1,27 +1,27 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap');
 
 :root {
-  /* Speech-lab identity — charcoal + apricot (not Monkeytype yellow/serika) */
-  --bg-color: #0c1118;
-  --bg-panel: #121a24;
-  --bg-glow: #1a2838;
-  --main-color: #ff8a4c;
-  --main-strong: #ff6b2c;
-  --main-soft: color-mix(in srgb, var(--main-color) 16%, transparent);
-  --caret-color: #ff8a4c;
-  --sub-color: #8b97a8;
-  --sub-alt-color: #161f2b;
-  --text-color: #f2f5f8;
-  --error-color: #ff5d7a;
-  --error-extra-color: #c43d58;
-  --live-color: #3dcea8;
+  /* Matte black base — soft panels, high-contrast type */
+  --bg-color: #0a0a0a;
+  --bg-panel: #141414;
+  --bg-glow: #1c1c1c;
+  --main-color: #ff9a5c;
+  --main-strong: #ff7a35;
+  --main-soft: color-mix(in srgb, var(--main-color) 14%, transparent);
+  --caret-color: #ff9a5c;
+  --sub-color: #9a9a9a;
+  --sub-alt-color: #1a1a1a;
+  --text-color: #f5f5f5;
+  --error-color: #ff6b84;
+  --error-extra-color: #d44a62;
+  --live-color: #4ad9b0;
   --roundness: 0.85rem;
   --font: 'IBM Plex Mono', ui-monospace, monospace;
   --font-ui: 'Outfit', sans-serif;
   --font-logo: 'Outfit', sans-serif;
-  --shadow-panel: 0 18px 50px color-mix(in srgb, #000 45%, transparent);
+  --shadow-panel: 0 16px 40px color-mix(in srgb, #000 55%, transparent);
 
-  --untyped-letter-color: var(--sub-color);
+  --untyped-letter-color: #7a7a7a;
   --correct-letter-color: var(--text-color);
   --incorrect-letter-color: var(--error-color);
   --extra-letter-color: var(--error-extra-color);
@@ -29,8 +29,7 @@
   font-family: var(--font-ui);
   color: var(--text-color);
   background:
-    radial-gradient(900px 480px at 8% -8%, var(--bg-glow), transparent 55%),
-    radial-gradient(700px 420px at 100% 110%, #2a1a12 0%, transparent 50%),
+    radial-gradient(800px 420px at 12% -12%, var(--bg-glow), transparent 60%),
     var(--bg-color);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
