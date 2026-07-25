@@ -29,11 +29,11 @@ export function ResultsScreen({
     <section className="results">
       <div className="results-hero">
         <div className="result-group">
-          <div className="top">wpm</div>
+          <div className="top">spoken wpm</div>
           <div className="bottom">{fmt(stats.netWpm, 0)}</div>
         </div>
         <div className="result-group">
-          <div className="top">acc</div>
+          <div className="top">clarity</div>
           <div className="bottom">{fmt(stats.accuracy, 0)}%</div>
         </div>
       </div>
@@ -44,19 +44,15 @@ export function ResultsScreen({
           className="rank-banner"
           onClick={onOpenLeaderboard}
         >
-          ♛ placed #{rank} — view leaderboard
+          placed #{rank} — open board
         </button>
       )}
 
       <div className="results-more">
         <div className="result-group">
-          <div className="top">test type</div>
+          <div className="top">mode</div>
           <div className="bottom small">
-            {mode === 'custom' ? 'custom' : `time ${durationSec}`}
-            <br />
-            english
-            <br />
-            speech
+            {mode === 'custom' ? 'phrase' : `timed ${durationSec}s`}
           </div>
         </div>
         <div className="result-group">
@@ -102,16 +98,13 @@ export function ResultsScreen({
       <div className="results-actions">
         <button
           type="button"
-          className="icon-btn"
+          className="icon-btn primary"
           onClick={onPlayAgain}
-          title="Back to home"
         >
-          <span aria-hidden="true">↻</span>
-          <span>next test</span>
+          next round
         </button>
         <button type="button" className="icon-btn" onClick={onOpenLeaderboard}>
-          <span aria-hidden="true">♛</span>
-          <span>leaderboard</span>
+          leaderboard
         </button>
       </div>
 

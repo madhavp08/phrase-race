@@ -4,10 +4,9 @@ import type { WordState } from '../types'
 interface WordsProps {
   words: WordState[]
   wordIndex: number
-  focused: boolean
 }
 
-export function Words({ words, wordIndex, focused }: WordsProps) {
+export function Words({ words, wordIndex }: WordsProps) {
   const activeRef = useRef<HTMLDivElement | null>(null)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
 
@@ -24,10 +23,7 @@ export function Words({ words, wordIndex, focused }: WordsProps) {
   }, [wordIndex, words])
 
   return (
-    <div
-      className={`words-wrapper ${focused ? '' : 'blurred'}`}
-      ref={wrapperRef}
-    >
+    <div className="words-wrapper" ref={wrapperRef}>
       <div className="words">
         {words.map((word, index) => {
           const isActive = index === wordIndex

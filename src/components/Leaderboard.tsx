@@ -25,16 +25,11 @@ export function Leaderboard({
       >
         <header className="lb-header">
           <div>
-            <p className="lb-kicker">all-time</p>
-            <h2>
-              <span className="lb-crown" aria-hidden="true">
-                ♛
-              </span>
-              leaderboard
-            </h2>
+            <p className="lb-kicker">this device</p>
+            <h2>leaderboard</h2>
           </div>
           <button type="button" className="lb-close" onClick={onClose}>
-            esc
+            close
           </button>
         </header>
 

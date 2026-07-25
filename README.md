@@ -9,6 +9,7 @@ Speak continuously through a word stream. A live agent paints letter mistakes fr
 - Vite + React 19 + TypeScript
 - Deepgram Nova-3 WebSocket streaming (`/v1/listen`)
 - Short-lived JWT auth via local `/api/deepgram-token` (API key stays server-side)
+- Outfit + IBM Plex Mono UI (speech-lab look, mobile-first)
 - Vitest
 
 ## Setup

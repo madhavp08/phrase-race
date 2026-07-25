@@ -9,6 +9,7 @@ interface TestScreenProps {
   wordIndex: number
   mode: TestMode
   durationSec: number
+  activeDuration: number
   customDuration: string
   isCustomDuration: boolean
   customPhrase: string
@@ -17,8 +18,6 @@ interface TestScreenProps {
   wpm: number
   accuracy: number
   playing: boolean
-  focused: boolean
-  listening: boolean
   connectionState: SpeechConnectionState
   supported: boolean
   error: string | null
@@ -32,11 +31,22 @@ interface TestScreenProps {
   onGoHome: () => void
 }
 
+function stageLabel(connectionState: SpeechConnectionState, playing: boolean) {
+  if (!playing) return { text: 'ready to speak', live: false }
+  if (connectionState === 'live') return { text: 'listening', live: true }
+  if (connectionState === 'connecting') return { text: 'connecting', live: false }
+  if (connectionState === 'reconnecting') {
+    return { text: 'reconnecting', live: false }
+  }
+  return { text: 'starting mic', live: false }
+}
+
 export function TestScreen({
   words,
   wordIndex,
   mode,
   durationSec,
+  activeDuration,
   customDuration,
   isCustomDuration,
   customPhrase,
@@ -45,8 +55,6 @@ export function TestScreen({
   wpm,
   accuracy,
   playing,
-  focused,
-  listening,
   connectionState,
   supported,
   error,
@@ -59,8 +67,10 @@ export function TestScreen({
   onStart,
   onGoHome,
 }: TestScreenProps) {
+  const stage = stageLabel(connectionState, playing)
+
   return (
-    <section className={`test-screen ${focused ? 'focused' : ''}`}>
+    <section className={`test-screen ${playing ? 'focused' : ''}`}>
       {!playing && (
         <ConfigBar
           mode={mode}
@@ -68,7 +78,6 @@ export function TestScreen({
           customDuration={customDuration}
           isCustomDuration={isCustomDuration}
           customPhrase={customPhrase}
-          disabled={playing}
           onModeChange={onModeChange}
           onDurationChange={onDurationChange}
           onCustomDurationChange={onCustomDurationChange}
@@ -87,11 +96,20 @@ export function TestScreen({
       />
 
       <div className="typing-test">
-        <div className="lang-row" aria-hidden="true">
-          <span className="lang-pill">english</span>
+        <div className="stage-meta">
+          <span className="stage-chip">
+            <span
+              className={`stage-chip-dot ${stage.live ? 'live' : ''}`}
+              aria-hidden="true"
+            />
+            {stage.text}
+          </span>
+          <span className="stage-chip">
+            {mode === 'custom' ? 'phrase' : `timed · ${activeDuration}s`}
+          </span>
         </div>
 
-        <Words words={words} wordIndex={wordIndex} focused={true} />
+        <Words words={words} wordIndex={wordIndex} />
 
         {!playing && (
           <p className="start-hint">
@@ -106,17 +124,17 @@ export function TestScreen({
                   className="text-btn primary"
                   onClick={onStart}
                 >
-                  click
+                  start speaking
                 </button>
               </>
             ) : (
-              'Use Chrome for speech recognition'
+              'Use a browser with microphone support'
             )}
           </p>
         )}
 
         {playing && connectionState === 'live' && (
-          <p className="listening-hint live">listening — keep talking</p>
+          <p className="listening-hint live">keep talking through the stream</p>
         )}
         {playing && connectionState === 'connecting' && (
           <p className="listening-hint">connecting to Deepgram…</p>
@@ -124,25 +142,18 @@ export function TestScreen({
         {playing && connectionState === 'reconnecting' && (
           <p className="listening-hint">reconnecting…</p>
         )}
-        {playing && !listening && !error && connectionState === 'idle' && (
-          <p className="listening-hint">starting mic…</p>
-        )}
       </div>
 
       {error && <p className="error-line">{error}</p>}
 
-      <button
-        type="button"
-        className="restart-btn"
-        onClick={onGoHome}
-        title="Back to home"
-      >
-        ↻
-      </button>
-
-      <p className="keytip">
-        <span>tab</span> — {playing ? 'home' : 'start'}
-      </p>
+      <div className="footer-row">
+        <button type="button" className="restart-btn" onClick={onGoHome}>
+          {playing ? 'end round' : 'reset'}
+        </button>
+        <p className="keytip">
+          <span>tab</span> — {playing ? 'home' : 'start'}
+        </p>
+      </div>
     </section>
   )
 }

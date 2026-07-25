@@ -196,7 +196,6 @@ function App() {
   )
 
   const {
-    listening,
     error: speechError,
     setError: setSpeechError,
     connectionState,
@@ -293,7 +292,6 @@ function App() {
     activeDuration,
     clearTimers,
     customPhrase,
-    finishRound,
     mode,
     requestPermission,
     setSpeechError,
@@ -368,31 +366,25 @@ function App() {
               <span className="logo-wave" />
             </span>
             <span className="logo-stack">
-              <span className="logo-tag">speak see</span>
+              <span className="logo-tag">speech race</span>
               <span className="logo-text">
                 phrase<span className="logo-accent">race</span>
               </span>
             </span>
           </button>
           <nav className="header-nav" aria-label="Main">
-            <button
-              type="button"
-              className="nav-ico"
-              title="Home"
-              onClick={goHome}
-            >
-              ⌨
+            <button type="button" className="nav-btn" onClick={goHome}>
+              home
             </button>
             <button
               type="button"
-              className="nav-ico"
-              title="Leaderboard"
+              className="nav-btn"
               onClick={() => {
                 setBoard(getLeaderboard())
                 setLeaderboardOpen(true)
               }}
             >
-              ♛
+              board
             </button>
           </nav>
         </div>
@@ -418,6 +410,7 @@ function App() {
             wordIndex={wordIndex}
             mode={mode}
             durationSec={durationSec}
+            activeDuration={activeDuration}
             customDuration={customDuration}
             isCustomDuration={isCustomDuration}
             customPhrase={customPhrase}
@@ -426,8 +419,6 @@ function App() {
             wpm={stats.netWpm}
             accuracy={stats.accuracy}
             playing={phase === 'playing'}
-            focused={phase === 'playing'}
-            listening={listening}
             connectionState={connectionState}
             supported={supported}
             error={startError ?? speechError}

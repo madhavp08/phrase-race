@@ -1,37 +1,42 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap');
 
 :root {
-  /* PhraseRace identity — cool ink + mint (not Monkeytype yellow/serika) */
-  --bg-color: #10141c;
-  --bg-glow: #1a2436;
-  --main-color: #3de0c5;
-  --main-strong: #2bc4ab;
-  --caret-color: #3de0c5;
-  --sub-color: #7b8494;
-  --sub-alt-color: #181e2a;
-  --text-color: #e8edf5;
-  --error-color: #ff6b8a;
-  --error-extra-color: #b83d57;
-  --roundness: 0.65rem;
+  /* Speech-lab identity — charcoal + apricot (not Monkeytype yellow/serika) */
+  --bg-color: #0c1118;
+  --bg-panel: #121a24;
+  --bg-glow: #1a2838;
+  --main-color: #ff8a4c;
+  --main-strong: #ff6b2c;
+  --main-soft: color-mix(in srgb, var(--main-color) 16%, transparent);
+  --caret-color: #ff8a4c;
+  --sub-color: #8b97a8;
+  --sub-alt-color: #161f2b;
+  --text-color: #f2f5f8;
+  --error-color: #ff5d7a;
+  --error-extra-color: #c43d58;
+  --live-color: #3dcea8;
+  --roundness: 0.85rem;
   --font: 'IBM Plex Mono', ui-monospace, monospace;
-  --font-logo: 'Syne', sans-serif;
+  --font-ui: 'Outfit', sans-serif;
+  --font-logo: 'Outfit', sans-serif;
+  --shadow-panel: 0 18px 50px color-mix(in srgb, #000 45%, transparent);
 
   --untyped-letter-color: var(--sub-color);
   --correct-letter-color: var(--text-color);
   --incorrect-letter-color: var(--error-color);
   --extra-letter-color: var(--error-extra-color);
 
-  font-family: var(--font);
+  font-family: var(--font-ui);
   color: var(--text-color);
   background:
-    radial-gradient(1200px 600px at 10% -10%, var(--bg-glow), transparent 55%),
-    radial-gradient(900px 500px at 100% 100%, #14201f 0%, transparent 45%),
+    radial-gradient(900px 480px at 8% -8%, var(--bg-glow), transparent 55%),
+    radial-gradient(700px 420px at 100% 110%, #2a1a12 0%, transparent 50%),
     var(--bg-color);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 * {
@@ -60,4 +65,9 @@ button {
   background: none;
   border: 0;
   cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--main-color);
+  outline-offset: 2px;
 }

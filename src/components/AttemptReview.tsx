@@ -11,7 +11,7 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
 
   return (
     <div className="attempt-review">
-      <h2>word history</h2>
+      <h2>what you said</h2>
       <ul className="attempt-list">
         {attempts.map((attempt, index) => (
           <li
