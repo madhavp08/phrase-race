@@ -99,6 +99,7 @@ function App() {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false)
   const [board, setBoard] = useState<LeaderboardEntry[]>(() => getLeaderboard())
   const [lastRank, setLastRank] = useState<number | null>(null)
+  const [heardLog, setHeardLog] = useState<string[]>([])
 
   const activeDuration = resolveDuration(
     isCustomDuration,
@@ -134,6 +135,7 @@ function App() {
     setPhase('idle')
     setStartError(null)
     setLeaderboardOpen(false)
+    setHeardLog([])
     setWords(previewWords(mode, customPhrase))
     setWordIndex(0)
     setAttempts([])
@@ -188,6 +190,7 @@ function App() {
   const handleFinalTranscript = useCallback(
     (transcript: string) => {
       if (phaseRef.current !== 'playing') return
+      setHeardLog((log) => [...log, transcript])
       const state = engineRef.current.applyFinal(transcript)
       syncFromEngine()
       if (state.phase === 'finished') finishRound()
@@ -196,6 +199,7 @@ function App() {
   )
 
   const {
+    liveHypothesis,
     error: speechError,
     setError: setSpeechError,
     connectionState,
@@ -281,6 +285,7 @@ function App() {
       setTimeLeftSec(seconds)
       setElapsedSec(0)
       setLastRank(null)
+      setHeardLog([])
       // Timer itself starts once Deepgram is actually live — see the
       // `connectionState` effect below — so connection lag doesn't burn
       // into the round duration.
@@ -413,6 +418,8 @@ function App() {
             connectionState={connectionState}
             supported={supported}
             error={startError ?? speechError}
+            heardLog={heardLog}
+            liveHypothesis={liveHypothesis}
             onModeChange={(next) => {
               setMode(next)
               if (next === 'custom' && !customPhrase.trim()) {

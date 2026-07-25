@@ -223,6 +223,13 @@
   border-bottom: 2px solid transparent;
 }
 
+/* Highlight the word to say next so the stream is easy to follow. */
+.word.active {
+  background: var(--sub-alt-color);
+  box-shadow: 0 0 0 0.22em var(--sub-alt-color);
+  border-radius: 2px;
+}
+
 .word.error {
   border-bottom-color: var(--text-color);
 }
@@ -283,6 +290,47 @@
   50% {
     opacity: 0;
   }
+}
+
+/* —— Prompt label + heard box —— */
+.prompt-label {
+  color: var(--sub-color);
+  font-size: 0.8rem;
+  margin-bottom: 0.6rem;
+}
+
+.heard-box {
+  margin-top: 1.25rem;
+  background: var(--sub-alt-color);
+  border-radius: var(--roundness);
+  padding: 0.75rem 0.9rem;
+}
+
+.heard-label {
+  color: var(--sub-color);
+  font-size: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.heard-text {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  min-height: 1.65rem;
+  overflow-wrap: anywhere;
+}
+
+.heard-final {
+  color: var(--text-color);
+}
+
+.heard-live {
+  color: var(--sub-color);
+}
+
+.heard-empty {
+  color: var(--sub-color);
+  opacity: 0.7;
 }
 
 /* —— Hints / status —— */
