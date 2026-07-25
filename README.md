@@ -13,24 +13,59 @@ Speak continuously through a word stream. A live agent paints letter mistakes fr
 
 ## Setup
 
-1. Copy env and add your Deepgram key:
+### 1. Deepgram API key
+
+1. Create a free key at [console.deepgram.com](https://console.deepgram.com/).
+2. Copy env and paste your key (no `VITE_` prefix — server-only):
 
 ```bash
 cp .env.example .env
-# edit .env → DEEPGRAM_API_KEY=...
+# edit .env → DEEPGRAM_API_KEY=your_real_key_here
 ```
 
-2. Install & run:
+3. Install and run:
 
 ```bash
 npm install
 npm run dev
 ```
 
-3. Open the app, allow the microphone, press **tab** to start.
+4. Open the app, allow the microphone, press **tab** to start.
 
-> The long-lived key is only used by the Vite middleware to call  
-> `POST https://api.deepgram.com/v1/auth/grant`. The browser receives a ~30s JWT.
+> The long-lived key is only used server-side to call  
+> `POST https://api.deepgram.com/v1/auth/grant`. The browser receives a ~45s JWT.
+
+**Local troubleshooting**
+
+- If you see **“DEEPGRAM_API_KEY is not set”**, restart `npm run dev` after editing `.env`. The placeholder `your_deepgram_api_key_here` is rejected on purpose.
+- If you see **“Insufficient permissions.”**, your key can call speech APIs but **cannot mint temporary JWTs**. `/auth/grant` requires a key with at least **Member** role:
+  1. Open [Deepgram Console → API Keys](https://console.deepgram.com/)
+  2. **Create a new key** → open **Advanced** options
+  3. Set permissions to **Member** (not a restricted “Member”/usage-only key with fewer scopes)
+  4. Paste the new key into `.env` and **restart** `npm run dev`
+
+### 2. Deploy to Vercel (GitHub)
+
+The repo is set up for [Vercel](https://vercel.com) + GitHub:
+
+| Piece | Role |
+| --- | --- |
+| `api/deepgram-token.ts` | Production token endpoint (serverless) |
+| `server/deepgramTokenPlugin.ts` | Same logic in local `npm run dev` |
+| `vercel.json` | Vite build + SPA fallback routing |
+
+**Steps:**
+
+1. Push this repo to GitHub (`madhavp08/phrase-race`).
+2. In [Vercel → New Project](https://vercel.com/new), import the GitHub repo.
+3. Under **Environment Variables**, add:
+   - Name: `DEEPGRAM_API_KEY`
+   - Value: your Deepgram API key
+   - Environments: Production (and Preview if you want PR deploys)
+4. Deploy. Vercel runs `npm run build` and serves `dist/`; `/api/deepgram-token` runs as a serverless function.
+5. On each push to `main`, Vercel redeploys automatically.
+
+**Production check:** Open your site → DevTools → Network → start a round → confirm `POST /api/deepgram-token` returns `{ access_token, expires_in }`.
 
 ## Speech architecture
 

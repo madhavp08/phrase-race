@@ -10,7 +10,7 @@ export async function fetchDeepgramToken(): Promise<string> {
     })
   } catch {
     throw new Error(
-      'Could not reach /api/deepgram-token. Is npm run dev running?',
+      'Could not reach /api/deepgram-token. Run npm run dev locally, or deploy with the Vercel serverless function and DEEPGRAM_API_KEY set.',
     )
   }
 
