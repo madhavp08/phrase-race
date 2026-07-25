@@ -9,7 +9,6 @@ interface TestScreenProps {
   wordIndex: number
   mode: TestMode
   durationSec: number
-  activeDuration: number
   customDuration: string
   isCustomDuration: boolean
   customPhrase: string
@@ -31,22 +30,11 @@ interface TestScreenProps {
   onGoHome: () => void
 }
 
-function stageLabel(connectionState: SpeechConnectionState, playing: boolean) {
-  if (!playing) return { text: 'ready to speak', live: false }
-  if (connectionState === 'live') return { text: 'listening', live: true }
-  if (connectionState === 'connecting') return { text: 'connecting', live: false }
-  if (connectionState === 'reconnecting') {
-    return { text: 'reconnecting', live: false }
-  }
-  return { text: 'starting mic', live: false }
-}
-
 export function TestScreen({
   words,
   wordIndex,
   mode,
   durationSec,
-  activeDuration,
   customDuration,
   isCustomDuration,
   customPhrase,
@@ -67,8 +55,6 @@ export function TestScreen({
   onStart,
   onGoHome,
 }: TestScreenProps) {
-  const stage = stageLabel(connectionState, playing)
-
   return (
     <section className={`test-screen ${playing ? 'focused' : ''}`}>
       {!playing && (
@@ -96,19 +82,6 @@ export function TestScreen({
       />
 
       <div className="typing-test">
-        <div className="stage-meta">
-          <span className="stage-chip">
-            <span
-              className={`stage-chip-dot ${stage.live ? 'live' : ''}`}
-              aria-hidden="true"
-            />
-            {stage.text}
-          </span>
-          <span className="stage-chip">
-            {mode === 'custom' ? 'phrase' : `timed · ${activeDuration}s`}
-          </span>
-        </div>
-
         <Words words={words} wordIndex={wordIndex} />
 
         {!playing && (
@@ -124,7 +97,7 @@ export function TestScreen({
                   className="text-btn primary"
                   onClick={onStart}
                 >
-                  start speaking
+                  click here
                 </button>
               </>
             ) : (
@@ -134,10 +107,10 @@ export function TestScreen({
         )}
 
         {playing && connectionState === 'live' && (
-          <p className="listening-hint live">keep talking through the stream</p>
+          <p className="listening-hint live">listening — keep talking</p>
         )}
         {playing && connectionState === 'connecting' && (
-          <p className="listening-hint">connecting to Deepgram…</p>
+          <p className="listening-hint">connecting…</p>
         )}
         {playing && connectionState === 'reconnecting' && (
           <p className="listening-hint">reconnecting…</p>
@@ -148,7 +121,7 @@ export function TestScreen({
 
       <div className="footer-row">
         <button type="button" className="restart-btn" onClick={onGoHome}>
-          {playing ? 'end round' : 'reset'}
+          {playing ? 'end round' : 'restart'}
         </button>
         <p className="keytip">
           <span>tab</span> — {playing ? 'home' : 'start'}

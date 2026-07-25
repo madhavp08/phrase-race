@@ -1,36 +1,26 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root {
-  /* Matte black base — soft panels, high-contrast type */
+  /* Monochrome — black background, white text, gray everything else */
   --bg-color: #0a0a0a;
-  --bg-panel: #141414;
-  --bg-glow: #1c1c1c;
-  --main-color: #ff9a5c;
-  --main-strong: #ff7a35;
-  --main-soft: color-mix(in srgb, var(--main-color) 14%, transparent);
-  --caret-color: #ff9a5c;
-  --sub-color: #9a9a9a;
-  --sub-alt-color: #1a1a1a;
-  --text-color: #f5f5f5;
-  --error-color: #ff6b84;
-  --error-extra-color: #d44a62;
-  --live-color: #4ad9b0;
-  --roundness: 0.85rem;
+  --sub-alt-color: #171717;
+  --main-color: #ffffff;
+  --caret-color: #ffffff;
+  --sub-color: #5f5f5f;
+  --text-color: #e8e8e8;
+  --error-color: #ffffff;
+  --error-extra-color: #9a9a9a;
+  --roundness: 0.5rem;
   --font: 'IBM Plex Mono', ui-monospace, monospace;
-  --font-ui: 'Outfit', sans-serif;
-  --font-logo: 'Outfit', sans-serif;
-  --shadow-panel: 0 16px 40px color-mix(in srgb, #000 55%, transparent);
 
-  --untyped-letter-color: #7a7a7a;
+  --untyped-letter-color: var(--sub-color);
   --correct-letter-color: var(--text-color);
   --incorrect-letter-color: var(--error-color);
   --extra-letter-color: var(--error-extra-color);
 
-  font-family: var(--font-ui);
+  font-family: var(--font);
   color: var(--text-color);
-  background:
-    radial-gradient(800px 420px at 12% -12%, var(--bg-glow), transparent 60%),
-    var(--bg-color);
+  background: var(--bg-color);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -51,7 +41,7 @@ body,
 body {
   margin: 0;
   min-width: 320px;
-  background: transparent;
+  background: var(--bg-color);
 }
 
 button,
@@ -67,6 +57,6 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--main-color);
+  outline: 1px solid var(--sub-color);
   outline-offset: 2px;
 }

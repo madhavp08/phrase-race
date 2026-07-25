@@ -29,11 +29,11 @@ export function ResultsScreen({
     <section className="results">
       <div className="results-hero">
         <div className="result-group">
-          <div className="top">spoken wpm</div>
+          <div className="top">wpm</div>
           <div className="bottom">{fmt(stats.netWpm, 0)}</div>
         </div>
         <div className="result-group">
-          <div className="top">clarity</div>
+          <div className="top">acc</div>
           <div className="bottom">{fmt(stats.accuracy, 0)}%</div>
         </div>
       </div>
@@ -50,9 +50,9 @@ export function ResultsScreen({
 
       <div className="results-more">
         <div className="result-group">
-          <div className="top">mode</div>
+          <div className="top">test type</div>
           <div className="bottom small">
-            {mode === 'custom' ? 'phrase' : `timed ${durationSec}s`}
+            {mode === 'custom' ? 'custom' : `time ${durationSec}`}
           </div>
         </div>
         <div className="result-group">
@@ -101,7 +101,7 @@ export function ResultsScreen({
           className="icon-btn primary"
           onClick={onPlayAgain}
         >
-          next round
+          next test
         </button>
         <button type="button" className="icon-btn" onClick={onOpenLeaderboard}>
           leaderboard

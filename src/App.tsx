@@ -360,16 +360,8 @@ function App() {
             onClick={goHome}
             title="Home"
           >
-            <span className="logo-mark" aria-hidden="true">
-              <span className="logo-wave" />
-              <span className="logo-wave" />
-              <span className="logo-wave" />
-            </span>
-            <span className="logo-stack">
-              <span className="logo-tag">speech race</span>
-              <span className="logo-text">
-                phrase<span className="logo-accent">race</span>
-              </span>
+            <span className="logo-text">
+              phrase<span className="logo-accent">race</span>
             </span>
           </button>
           <nav className="header-nav" aria-label="Main">
@@ -410,7 +402,6 @@ function App() {
             wordIndex={wordIndex}
             mode={mode}
             durationSec={durationSec}
-            activeDuration={activeDuration}
             customDuration={customDuration}
             isCustomDuration={isCustomDuration}
             customPhrase={customPhrase}
