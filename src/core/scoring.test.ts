@@ -8,8 +8,10 @@ import {
 import { countWords, isExactMatch, normalizeText } from './normalize'
 import {
   calculateBestStreak,
+  calculateConsistency,
   calculateStats,
   calculateStatsFromWords,
+  calculateWordLatencyRange,
   createAttempt,
   roundTo2,
 } from './scoring'
@@ -98,6 +100,64 @@ describe('calculateBestStreak', () => {
 
   it('returns zero for empty rounds', () => {
     expect(calculateBestStreak([])).toBe(0)
+  })
+})
+
+describe('calculateConsistency', () => {
+  it('returns 0 for a round with no attempts', () => {
+    expect(calculateConsistency([])).toBe(0)
+  })
+
+  it('returns 100 for a single word (no variance)', () => {
+    const attempts = [createAttempt('one', 'one', 500)]
+    expect(calculateConsistency(attempts)).toBe(100)
+  })
+
+  it('returns 100 when every word takes the same time', () => {
+    const attempts = [
+      createAttempt('a', 'a', 400),
+      createAttempt('b', 'b', 400),
+      createAttempt('c', 'c', 400),
+    ]
+    expect(calculateConsistency(attempts)).toBe(100)
+  })
+
+  it('drops as per-word latency becomes more erratic', () => {
+    const steady = [
+      createAttempt('a', 'a', 400),
+      createAttempt('b', 'b', 420),
+      createAttempt('c', 'c', 410),
+    ]
+    const erratic = [
+      createAttempt('a', 'a', 100),
+      createAttempt('b', 'b', 900),
+      createAttempt('c', 'c', 200),
+    ]
+
+    expect(calculateConsistency(steady)).toBeGreaterThan(
+      calculateConsistency(erratic),
+    )
+  })
+})
+
+describe('calculateWordLatencyRange', () => {
+  it('returns zeros for an empty round', () => {
+    expect(calculateWordLatencyRange([])).toEqual({
+      fastestWordMs: 0,
+      slowestWordMs: 0,
+    })
+  })
+
+  it('finds the fastest and slowest word response times', () => {
+    const attempts = [
+      createAttempt('a', 'a', 300),
+      createAttempt('b', 'b', 150),
+      createAttempt('c', 'c', 600),
+    ]
+    expect(calculateWordLatencyRange(attempts)).toEqual({
+      fastestWordMs: 150,
+      slowestWordMs: 600,
+    })
   })
 })
 

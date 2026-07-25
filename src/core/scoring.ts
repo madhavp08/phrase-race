@@ -48,6 +48,41 @@ export function calculateBestStreak(attempts: PhraseAttempt[]): number {
 }
 
 /**
+ * Speech-latency consistency, mirroring Monkeytype's keystroke consistency
+ * but measured on per-word STT response time: 100 * (1 - stddev / mean),
+ * clamped to [0, 100]. A single word (no variance to measure) reports 100.
+ */
+export function calculateConsistency(attempts: PhraseAttempt[]): number {
+  if (attempts.length === 0) return 0
+
+  const times = attempts.map((attempt) => attempt.responseTimeMs)
+  const mean = times.reduce((sum, ms) => sum + ms, 0) / times.length
+  if (mean <= 0 || times.length === 1) return 100
+
+  const variance =
+    times.reduce((sum, ms) => sum + (ms - mean) ** 2, 0) / times.length
+  const stdDev = Math.sqrt(variance)
+
+  return roundTo2(Math.max(0, Math.min(100, (1 - stdDev / mean) * 100)))
+}
+
+/** Fastest/slowest per-word STT response time in the round, in ms. */
+export function calculateWordLatencyRange(attempts: PhraseAttempt[]): {
+  fastestWordMs: number
+  slowestWordMs: number
+} {
+  if (attempts.length === 0) {
+    return { fastestWordMs: 0, slowestWordMs: 0 }
+  }
+
+  const times = attempts.map((attempt) => attempt.responseTimeMs)
+  return {
+    fastestWordMs: Math.min(...times),
+    slowestWordMs: Math.max(...times),
+  }
+}
+
+/**
  * Monkeytype formulas:
  *   minutes = elapsedMs / 60000
  *   wpm     = (correct / 5) / minutes
@@ -71,6 +106,8 @@ export function calculateStatsFromWords(
   )
   const denom = accuracyDenominator(counts)
   const typed = rawCharCount(counts)
+  const consistency = calculateConsistency(attempts)
+  const { fastestWordMs, slowestWordMs } = calculateWordLatencyRange(attempts)
 
   const empty: RoundStats = {
     rawWpm: 0,
@@ -79,6 +116,9 @@ export function calculateStatsFromWords(
     bestStreak: calculateBestStreak(attempts),
     averageResponseTimeMs:
       attempts.length > 0 ? totalResponseTimeMs / attempts.length : 0,
+    consistency,
+    fastestWordMs,
+    slowestWordMs,
     correctChars: counts.correct,
     incorrectChars: counts.incorrect,
     extraChars: counts.extra,
@@ -100,6 +140,9 @@ export function calculateStatsFromWords(
     bestStreak: calculateBestStreak(attempts),
     averageResponseTimeMs:
       attempts.length > 0 ? totalResponseTimeMs / attempts.length : 0,
+    consistency,
+    fastestWordMs,
+    slowestWordMs,
     correctChars: counts.correct,
     incorrectChars: counts.incorrect,
     extraChars: counts.extra,
@@ -121,6 +164,8 @@ export function calculateStats(
       accuracy: 0,
       bestStreak: 0,
       averageResponseTimeMs: 0,
+      consistency: calculateConsistency(attempts),
+      ...calculateWordLatencyRange(attempts),
       correctChars: 0,
       incorrectChars: 0,
       extraChars: 0,
@@ -150,6 +195,8 @@ export function calculateStats(
     accuracy: roundTo2((correctAttempts / attempts.length) * 100),
     bestStreak: calculateBestStreak(attempts),
     averageResponseTimeMs: totalResponseTimeMs / attempts.length,
+    consistency: calculateConsistency(attempts),
+    ...calculateWordLatencyRange(attempts),
     correctChars: 0,
     incorrectChars: 0,
     extraChars: 0,

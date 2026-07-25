@@ -23,6 +23,9 @@ export function AttemptReview({ attempts }: AttemptReviewProps) {
             <span className="attempt-heard">
               {attempt.transcript || '(empty)'}
             </span>
+            <span className="attempt-latency" title="STT response latency">
+              {Math.round(attempt.responseTimeMs)}ms
+            </span>
           </li>
         ))}
       </ul>

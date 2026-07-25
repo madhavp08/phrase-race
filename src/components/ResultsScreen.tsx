@@ -93,6 +93,24 @@ export function ResultsScreen({
           <div className="top">time</div>
           <div className="bottom">{durationSec}s</div>
         </div>
+        <div className="result-group">
+          <div className="top">consistency</div>
+          <div className="bottom">{fmt(stats.consistency, 0)}%</div>
+        </div>
+        <div className="result-group">
+          <div className="top">avg latency</div>
+          <div className="bottom small">
+            {fmt(stats.averageResponseTimeMs, 0)}ms
+          </div>
+        </div>
+        <div className="result-group">
+          <div className="top">word latency</div>
+          <div className="bottom small">
+            {stats.correctWords + stats.incorrectWords > 0
+              ? `${fmt(stats.fastestWordMs, 0)}–${fmt(stats.slowestWordMs, 0)}ms`
+              : '—'}
+          </div>
+        </div>
       </div>
 
       <div className="results-actions">

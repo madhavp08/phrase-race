@@ -472,7 +472,7 @@
 
 .results-more {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -576,6 +576,12 @@
 
 .attempt-list .miss .attempt-heard {
   color: var(--error-extra-color);
+}
+
+.attempt-latency {
+  color: var(--sub-color);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .muted {

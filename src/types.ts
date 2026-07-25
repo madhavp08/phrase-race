@@ -34,6 +34,10 @@ export interface RoundStats {
   accuracy: number
   bestStreak: number
   averageResponseTimeMs: number
+  /** 100 * (1 - stddev(word latency) / mean(word latency)), clamped 0-100. */
+  consistency: number
+  fastestWordMs: number
+  slowestWordMs: number
   correctChars: number
   incorrectChars: number
   extraChars: number
