@@ -1,6 +1,8 @@
 /// <reference types="node" />
-import { validateRunPayload } from './_lib/runPayload'
-import { AccountConflictError } from './_lib/errors'
+import { getDatabaseUrl } from './_lib/db.js'
+import { AccountConflictError } from './_lib/errors.js'
+import { validateRunPayload } from './_lib/runPayload.js'
+import { createRun } from './_lib/store.js'
 
 export default async function handler(
   req: {
@@ -25,7 +27,6 @@ export default async function handler(
       return
     }
 
-    const { getDatabaseUrl } = await import('./_lib/db')
     if (!getDatabaseUrl()) {
       res.status(503).json({
         error:
@@ -34,7 +35,6 @@ export default async function handler(
       return
     }
 
-    const { createRun } = await import('./_lib/store')
     const result = await createRun(parsed.value)
     res.setHeader('Cache-Control', 'no-store')
     res.status(201).json(result)

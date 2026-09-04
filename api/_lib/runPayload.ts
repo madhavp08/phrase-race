@@ -1,4 +1,4 @@
-import { parseAccountFields, type AccountFields } from './account'
+import { parseAccountFields, type AccountFields } from './account.js'
 
 type ModelResultStatus = 'valid' | 'provider_failure' | 'client_failure'
 
@@ -240,7 +240,9 @@ export function validateRunPayload(raw: unknown): RunPayloadResult {
       typeof body.account.username === 'string' ? body.account.username : '',
       typeof body.account.email === 'string' ? body.account.email : '',
     )
-    if (!parsedAccount.ok) return { ok: false, error: parsedAccount.error }
+    if (parsedAccount.ok === false) {
+      return { ok: false, error: parsedAccount.error }
+    }
     account = parsedAccount.value
   }
 

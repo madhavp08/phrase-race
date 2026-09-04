@@ -1,5 +1,5 @@
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless'
-import { SCHEMA_SQL } from './schema'
+import { SCHEMA_SQL } from './schema.js'
 
 let sql: NeonQueryFunction<false, false> | null = null
 let schemaReady = false

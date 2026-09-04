@@ -1,4 +1,4 @@
-import type { AccountConflictCode } from './account'
+import type { AccountConflictCode } from './account.js'
 
 export class AccountConflictError extends Error {
   readonly code: AccountConflictCode

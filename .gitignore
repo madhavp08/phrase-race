@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+api/_lib/*.js
+api/_lib/*.js.map
 *.local
 coverage
 

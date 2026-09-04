@@ -1,4 +1,6 @@
 /// <reference types="node" />
+import { getDatabaseUrl } from './_lib/db.js'
+import { listLeaderboard } from './_lib/store.js'
 
 export default async function handler(
   req: { method?: string },
@@ -14,7 +16,6 @@ export default async function handler(
       return
     }
 
-    const { getDatabaseUrl } = await import('./_lib/db')
     if (!getDatabaseUrl()) {
       res.status(503).json({
         error: 'DATABASE_URL is not set.',
@@ -23,7 +24,6 @@ export default async function handler(
       return
     }
 
-    const { listLeaderboard } = await import('./_lib/store')
     const entries = await listLeaderboard()
     res.setHeader('Cache-Control', 'no-store')
     res.status(200).json({ entries })

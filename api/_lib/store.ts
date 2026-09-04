@@ -3,15 +3,15 @@ import {
   decideAccountAction,
   formatGuestUsername,
   isGuestUsername,
-} from './account'
-import { AccountConflictError } from './errors'
-import type { ModelSummaryRow } from './modelSummary'
-import type { RunPayload } from './runPayload'
-import { chunkedPackRows } from './sqlBatch'
-import { average, percentile } from './stats'
-import { ensureSchema, getSql } from './db'
+} from './account.js'
+import { AccountConflictError } from './errors.js'
+import type { ModelSummaryRow } from './modelSummary.js'
+import type { RunPayload } from './runPayload.js'
+import { chunkedPackRows } from './sqlBatch.js'
+import { average, percentile } from './stats.js'
+import { ensureSchema, getSql } from './db.js'
 
-export { AccountConflictError } from './errors'
+export { AccountConflictError } from './errors.js'
 
 export interface CreateRunResult {
   id: string
@@ -401,7 +401,7 @@ async function resolveRegisteredAccount(
   )) as Array<{ id: string; username: string; email: string | null }>
 
   const decision = decideAccountAction(username, email, matches)
-  if (!decision.ok) {
+  if (decision.ok === false) {
     throw new AccountConflictError(decision.code, decision.error)
   }
 

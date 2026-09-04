@@ -14,4 +14,16 @@ describe('Vercel API boundary', () => {
       expect(text, path).not.toMatch(/from ['"][^'"]*\/src\//)
     }
   })
+
+  it('uses .js extensions on relative imports so Node ESM can load helpers', () => {
+    const files = Object.entries(apiModules)
+    for (const [path, text] of files) {
+      for (const match of text.matchAll(/from ['"](\.[^'"]+)['"]/g)) {
+        expect(match[1], path).toMatch(/\.js$/)
+      }
+      for (const match of text.matchAll(/import\(['"](\.[^'"]+)['"]\)/g)) {
+        expect(match[1], path).toMatch(/\.js$/)
+      }
+    }
+  })
 })
