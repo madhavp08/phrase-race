@@ -62,9 +62,9 @@ export function RegisterModal({
         </header>
 
         <p className="reg-copy">
-          Pick a unique username and an email. The public board shows only the
-          username. One email can only ever own one username. Skip and you still
-          appear on the board as guest #0, guest #1, and so on.
+          {submitting
+            ? 'Saving your score to the live board… this usually takes a couple of seconds.'
+            : 'Pick a unique username and an email. The public board shows only the username. One email can only ever own one username. Skip and you still appear on the board as guest #0, guest #1, and so on.'}
         </p>
 
         <form className="reg-form" onSubmit={handleSubmit}>

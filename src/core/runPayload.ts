@@ -133,26 +133,34 @@ function parseModel(raw: unknown): ModelResult | null {
 }
 
 export function validateRunPayload(raw: unknown): RunPayloadResult {
-  const secret = rejectSecretKeys(raw)
+  let body: unknown = raw
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body) as unknown
+    } catch {
+      return { ok: false, error: 'Body must be valid JSON' }
+    }
+  }
+  const secret = rejectSecretKeys(body)
   if (secret) return { ok: false, error: secret }
-  if (!isRecord(raw)) return { ok: false, error: 'Body must be a JSON object' }
+  if (!isRecord(body)) return { ok: false, error: 'Body must be a JSON object' }
 
-  const anonymousId = asString(raw.anonymousId)
-  const startedAt = asString(raw.startedAt)
-  const endedAt = asString(raw.endedAt)
-  const testType = asString(raw.testType)
-  const durationSec = asNumber(raw.durationSec)
-  const referenceWords = asStringArray(raw.referenceWords)
-  const promptSetId = asString(raw.promptSetId)
-  const benchmarkVersion = asString(raw.benchmarkVersion)
-  const scorerVersion = asString(raw.scorerVersion)
-  const audioFormat = asString(raw.audioFormat)
-  const sampleRate = asNumber(raw.sampleRate)
-  const openaiInputHz = asNumber(raw.openaiInputHz)
-  const outcome = asString(raw.outcome)
-  const userMetrics = isRecord(raw.userMetrics) ? raw.userMetrics : null
-  const models = Array.isArray(raw.models)
-    ? raw.models.map(parseModel)
+  const anonymousId = asString(body.anonymousId)
+  const startedAt = asString(body.startedAt)
+  const endedAt = asString(body.endedAt)
+  const testType = asString(body.testType)
+  const durationSec = asNumber(body.durationSec)
+  const referenceWords = asStringArray(body.referenceWords)
+  const promptSetId = asString(body.promptSetId)
+  const benchmarkVersion = asString(body.benchmarkVersion)
+  const scorerVersion = asString(body.scorerVersion)
+  const audioFormat = asString(body.audioFormat)
+  const sampleRate = asNumber(body.sampleRate)
+  const openaiInputHz = asNumber(body.openaiInputHz)
+  const outcome = asString(body.outcome)
+  const userMetrics = isRecord(body.userMetrics) ? body.userMetrics : null
+  const models = Array.isArray(body.models)
+    ? body.models.map(parseModel)
     : null
 
   if (!anonymousId) return { ok: false, error: 'anonymousId is required' }
@@ -190,21 +198,21 @@ export function validateRunPayload(raw: unknown): RunPayloadResult {
   }
 
   let judgeProvider: string | undefined
-  const judgeRaw = asString(raw.judgeProvider)
+  const judgeRaw = asString(body.judgeProvider)
   if (judgeRaw) judgeProvider = judgeRaw
 
   let modeLabel: string | undefined
-  const modeRaw = asString(raw.modeLabel)
+  const modeRaw = asString(body.modeLabel)
   if (modeRaw) modeLabel = modeRaw
 
   let account: AccountFields | undefined
-  if (raw.account !== undefined && raw.account !== null) {
-    if (!isRecord(raw.account)) {
+  if (body.account !== undefined && body.account !== null) {
+    if (!isRecord(body.account)) {
       return { ok: false, error: 'account must be an object' }
     }
     const parsedAccount = parseAccountFields(
-      typeof raw.account.username === 'string' ? raw.account.username : '',
-      typeof raw.account.email === 'string' ? raw.account.email : '',
+      typeof body.account.username === 'string' ? body.account.username : '',
+      typeof body.account.email === 'string' ? body.account.email : '',
     )
     if (!parsedAccount.ok) return { ok: false, error: parsedAccount.error }
     account = parsedAccount.value

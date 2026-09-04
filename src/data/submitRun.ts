@@ -9,6 +9,14 @@ import type { AccountFields } from '../core/account'
 import type { RunPayload, TestType } from '../core/runPayload'
 import type { RoundStats } from '../types'
 import { getAnonymousId } from './anonymousId'
+import {
+  errorFromBody,
+  isAbortError,
+  readResponseBody,
+  withTimeout,
+} from './http'
+
+const SAVE_TIMEOUT_MS = 25_000
 
 export interface SubmitRunInput {
   startedAt: number
@@ -56,21 +64,30 @@ export async function submitRun(
     account: input.account,
   }
 
+  const timeout = withTimeout(SAVE_TIMEOUT_MS)
   try {
     const response = await fetch('/api/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(payload),
+      signal: timeout.signal,
     })
-    const body = (await response.json()) as {
-      id?: string
-      rank?: number | null
-      username?: string | null
-      error?: string
-      code?: string
-    }
-    if (!response.ok || !body.id) {
-      return { error: body.error || `Save failed (${response.status})`, code: body.code }
+    const { ok, status, json, text } = await readResponseBody(response)
+    const body =
+      json && typeof json === 'object'
+        ? (json as {
+            id?: string
+            rank?: number | null
+            username?: string | null
+            error?: string
+            code?: string
+          })
+        : {}
+    if (!ok || !body.id) {
+      return {
+        error: errorFromBody(status, json, text, `Save failed (${status})`),
+        code: body.code,
+      }
     }
     return {
       id: body.id,
@@ -79,8 +96,13 @@ export async function submitRun(
     }
   } catch (error) {
     return {
-      error:
-        error instanceof Error ? error.message : 'Could not reach /api/runs',
+      error: isAbortError(error)
+        ? 'Save timed out on the server. Try again in a moment.'
+        : error instanceof Error
+          ? error.message
+          : 'Could not reach /api/runs',
     }
+  } finally {
+    timeout.cancel()
   }
 }
