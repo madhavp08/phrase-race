@@ -6,13 +6,24 @@ describe('GameEngine', () => {
     vi.spyOn(performance, 'now').mockReturnValue(0)
   })
 
-  it('starts a timed round with a word stream', () => {
+  it('starts a timed round with a sentence stream', () => {
     const engine = new GameEngine()
     engine.startRound(60_000, 'time', 20)
     expect(engine.getState().phase).toBe('playing')
     expect(engine.getState().mode).toBe('time')
     expect(engine.getState().words.length).toBe(20)
     expect(engine.getState().words[0].status).toBe('active')
+  })
+
+  it('keeps function words in a default timed prompt', () => {
+    const engine = new GameEngine()
+    engine.startRound(60_000, 'time', 80)
+    const text = engine
+      .getState()
+      .words.map((word) => word.expected)
+      .join(' ')
+    expect(text).toMatch(/\bthe\b/)
+    expect(text).toMatch(/\band\b/)
   })
 
   it('starts a custom round with a tongue twister', () => {

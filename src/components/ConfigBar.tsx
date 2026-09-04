@@ -1,6 +1,6 @@
 import type { TestMode } from '../types'
 
-const PRESET_DURATIONS = [15, 30, 60] as const
+const PRESET_DURATIONS = [15, 30, 60, 120] as const
 
 interface ConfigBarProps {
   mode: TestMode
@@ -29,6 +29,8 @@ export function ConfigBar({
   onCustomPhraseChange,
   onShufflePhrase,
 }: ConfigBarProps) {
+  const durationValue = isCustomDuration ? customDuration : String(durationSec)
+
   return (
     <div className="config">
       <div className="config-bar">
@@ -49,42 +51,39 @@ export function ConfigBar({
           </button>
         </div>
 
-        {mode === 'time' && (
-          <div className="config-card" role="group" aria-label="Duration">
-            {PRESET_DURATIONS.map((sec) => (
-              <button
-                key={sec}
-                type="button"
-                className={`config-mode ${
-                  !isCustomDuration && durationSec === sec ? 'active' : ''
-                }`}
-                onClick={() => onDurationChange(sec)}
-              >
-                {sec}s
-              </button>
-            ))}
+        <div className="config-card" role="group" aria-label="Duration">
+          {PRESET_DURATIONS.map((sec) => (
             <button
+              key={sec}
               type="button"
-              className={`config-mode icon-only ${isCustomDuration ? 'active' : ''}`}
-              onClick={onSelectCustomDuration}
-              title="Custom duration"
+              className={`config-mode ${
+                mode === 'time' && !isCustomDuration && durationSec === sec
+                  ? 'active'
+                  : ''
+              }`}
+              onClick={() => onDurationChange(sec)}
             >
-              custom
+              {sec}
             </button>
-            {isCustomDuration && (
-              <input
-                className="custom-time-input"
-                type="number"
-                min={5}
-                max={600}
-                inputMode="numeric"
-                value={customDuration}
-                onChange={(event) => onCustomDurationChange(event.target.value)}
-                aria-label="Custom duration in seconds"
-              />
-            )}
-          </div>
-        )}
+          ))}
+          <input
+            className={`custom-time-input ${
+              mode === 'time' && isCustomDuration ? 'active' : ''
+            }`}
+            type="number"
+            min={5}
+            max={600}
+            inputMode="numeric"
+            value={durationValue}
+            onChange={(event) => onCustomDurationChange(event.target.value)}
+            onFocus={() => {
+              if (!isCustomDuration) onSelectCustomDuration()
+            }}
+            aria-label="Duration in seconds"
+            title="seconds"
+          />
+          <span className="config-hint">s</span>
+        </div>
 
         {mode === 'custom' && (
           <div className="config-card">
@@ -92,11 +91,11 @@ export function ConfigBar({
               type="button"
               className="config-mode"
               onClick={onShufflePhrase}
-              title="New tongue twister"
+              title="New phrase"
             >
               shuffle
             </button>
-            <span className="config-hint">tongue twister or paste your own</span>
+            <span className="config-hint">paste your own or shuffle</span>
           </div>
         )}
       </div>

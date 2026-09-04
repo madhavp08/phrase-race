@@ -8,7 +8,7 @@ import {
 } from './components'
 import {
   GameEngine,
-  buildWordList,
+  buildSentenceStream,
   createWordState,
   pickLivePrimary,
   pickRoundJudge,
@@ -16,6 +16,7 @@ import {
   statsFromJudge,
   tokenizeWords,
 } from './core'
+import { SENTENCE_PROMPT_SET_ID } from './data/sentences'
 import type { AccountFields } from './core/account'
 import { readSavedAccount, writeSavedAccount } from './data/accountStorage'
 import {
@@ -62,15 +63,15 @@ function wordsFromPhrase(phrase: string): WordState[] {
   const fallback =
     list.length > 0 ? list : tokenizeWords(pickTongueTwisterText())
   return fallback.map((word, index) => ({
-    ...createWordState(word),
+    ...createWordState(word, index === fallback.length - 1),
     status: index === 0 ? 'active' : 'pending',
   }))
 }
 
 function previewWords(mode: TestMode, customPhrase: string): WordState[] {
   if (mode === 'custom') return wordsFromPhrase(customPhrase)
-  return buildWordList(220).map((word, index) => ({
-    ...createWordState(word),
+  return buildSentenceStream(220).map((token, index) => ({
+    ...createWordState(token.word, token.sentenceEnd),
     status: index === 0 ? 'active' : 'pending',
   }))
 }
@@ -268,7 +269,7 @@ function App() {
             durationSec: durationForRun,
             referenceWords,
             promptSetId:
-              mode === 'custom' ? 'tongue-twisters-v1' : 'english-400-stream-220',
+              mode === 'custom' ? 'tongue-twisters-v1' : SENTENCE_PROMPT_SET_ID,
             outcome: 'completed',
             stats: finalStats,
             models: harvested,
@@ -421,7 +422,10 @@ function App() {
       const seconds = activeDuration
       // Start with exactly the prompts already visible on screen. Generating
       // another shuffled list here makes the test change when Tab is pressed.
-      const promptWords = words.map((word) => word.expected)
+      const promptWords = words.map((word) => ({
+        word: word.expected,
+        sentenceEnd: Boolean(word.sentenceEnd),
+      }))
 
       engineRef.current = new GameEngine()
       engineRef.current.startRound(
@@ -619,11 +623,19 @@ function App() {
               }
             }}
             onDurationChange={(sec) => {
+              setMode('time')
               setIsCustomDuration(false)
               setDurationSec(sec)
             }}
-            onCustomDurationChange={setCustomDuration}
-            onSelectCustomDuration={() => setIsCustomDuration(true)}
+            onCustomDurationChange={(value) => {
+              setMode('time')
+              setIsCustomDuration(true)
+              setCustomDuration(value)
+            }}
+            onSelectCustomDuration={() => {
+              setMode('time')
+              setIsCustomDuration(true)
+            }}
             onCustomPhraseChange={setCustomPhrase}
             onShufflePhrase={shufflePhrase}
             onStart={() => void startRound()}

@@ -13,6 +13,8 @@ export interface WordState {
   typed: string
   letters: LetterState[]
   status: WordStatus
+  /** Visual gap after this word — it ended a sentence in the prompt. */
+  sentenceEnd?: boolean
 }
 
 export interface PhraseAttempt {
@@ -48,7 +50,7 @@ export interface RoundStats {
 
 export type GamePhase = 'idle' | 'playing' | 'finished'
 
-/** time = timed word stream; custom = editable tongue twister / phrase. */
+/** time = timed sentence stream; custom = paste or shuffle a phrase. */
 export type TestMode = 'time' | 'custom'
 
 export interface GameState {

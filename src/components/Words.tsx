@@ -45,6 +45,7 @@ export function Words({ words, wordIndex }: WordsProps) {
                 word.status === 'typed' ? 'typed' : '',
                 word.status === 'error' ? 'error' : '',
                 word.status === 'preview' ? 'preview' : '',
+                word.sentenceEnd ? 'sentence-end' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}

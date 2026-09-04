@@ -4,6 +4,7 @@ import { splitLiveHypothesis } from '../speech/liveAgent'
 import type { GameState, PhraseAttempt, RoundStats, TestMode } from '../types'
 import { commitWord, createWordState, previewWord } from './align'
 import { normalizeText, tokenizeWords } from './normalize'
+import { asPromptTokens, buildSentenceStream, type PromptWord } from './prompts'
 import {
   calculateBestStreak,
   calculateStatsFromWords,
@@ -19,7 +20,7 @@ function shuffle<T>(items: T[]): T[] {
   return copy
 }
 
-/** Monkeytype-style stream: shuffled common English content words. */
+/** Shuffled content-word bag. Timed rounds now use buildSentenceStream. */
 export function buildWordList(count = 220): string[] {
   if (WORDS.length === 0) return []
 
@@ -70,15 +71,17 @@ export class GameEngine {
     durationMs = 60_000,
     mode: TestMode = 'time',
     wordCount = 220,
-    promptWords?: string[],
+    promptWords?: PromptWord[],
   ): GameState {
     const list =
       promptWords && promptWords.length > 0
-        ? promptWords
+        ? asPromptTokens(promptWords)
         : mode === 'custom'
-          ? pickTongueTwister()
-        : buildWordList(wordCount)
-    const words = list.map((word) => createWordState(word))
+          ? asPromptTokens(pickTongueTwister())
+          : buildSentenceStream(wordCount)
+    const words = list.map((token) =>
+      createWordState(token.word, token.sentenceEnd),
+    )
     if (words[0]) words[0] = { ...words[0], status: 'active' }
 
     this.softCommitted = []
@@ -106,7 +109,10 @@ export class GameEngine {
     if (wordIndex >= words.length) return
 
     const expected = words[wordIndex].expected
-    const committed = commitWord(expected, spoken)
+    const committed = {
+      ...commitWord(expected, spoken),
+      sentenceEnd: words[wordIndex].sentenceEnd,
+    }
     const responseTimeMs = performance.now() - this.wordStartedAt
     const attempt = createAttempt(expected, spoken, responseTimeMs)
 
@@ -137,10 +143,13 @@ export class GameEngine {
       words: words.map((word, index) => {
         if (index < wordIndex) return word
         if (index === wordIndex) {
-          return { ...createWordState(word.expected), status: 'active' }
+          return {
+            ...createWordState(word.expected, word.sentenceEnd),
+            status: 'active',
+          }
         }
         if (word.status === 'preview' || word.status === 'active') {
-          return createWordState(word.expected)
+          return createWordState(word.expected, word.sentenceEnd)
         }
         return word
       }),
@@ -156,14 +165,21 @@ export class GameEngine {
       words: words.map((word, index) => {
         if (index !== wordIndex) {
           if (index > wordIndex && word.status === 'preview') {
-            return createWordState(word.expected)
+            return createWordState(word.expected, word.sentenceEnd)
           }
           return word
         }
         if (!partialWord) {
-          return { ...createWordState(word.expected), status: 'active' }
+          return {
+            ...createWordState(word.expected, word.sentenceEnd),
+            status: 'active',
+          }
         }
-        return { ...previewWord(word.expected, partialWord), status: 'active' }
+        return {
+          ...previewWord(word.expected, partialWord),
+          status: 'active',
+          sentenceEnd: word.sentenceEnd,
+        }
       }),
     }
   }

@@ -134,7 +134,7 @@ Deepgram listen params (code is source of truth):
 - `endpointing=100`, `utterance_end_ms=1000`
 - Auth: subprotocols `['bearer', jwt]` (RFC 6455 forbids spaces in one token)
 
-Prompts: shuffled 220-word streams from a 400-word frequency list, plus 20 tongue-twister stress phrases.
+Prompts: timed rounds are a 220-word stream of original English sentences (function words included, shuffled as whole sentences). Phrase mode is still a tongue twister or anything you paste.
 
 ## Gameplay shortcuts
 
