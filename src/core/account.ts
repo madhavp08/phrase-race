@@ -12,7 +12,7 @@ export interface AccountFields {
 export interface AccountRow {
   id: string
   username: string
-  email: string
+  email: string | null
 }
 
 export type AccountConflictCode = 'username_taken' | 'email_username_mismatch'
@@ -79,12 +79,15 @@ export function decideAccountAction(
 ): AccountDecision {
   const wantUser = username.toLowerCase()
   const wantEmail = email.toLowerCase()
-  const byUser = matches.filter(
+  const registered = matches.filter((row) => row.email != null)
+  const byUser = registered.filter(
     (row) => row.username.toLowerCase() === wantUser,
   )
-  const byEmail = matches.filter((row) => row.email.toLowerCase() === wantEmail)
+  const byEmail = registered.filter(
+    (row) => row.email != null && row.email.toLowerCase() === wantEmail,
+  )
 
-  if (matches.length === 0) return { ok: true, action: 'create' }
+  if (registered.length === 0) return { ok: true, action: 'create' }
 
   const same =
     byUser.length === 1 &&
@@ -111,4 +114,12 @@ export function decideAccountAction(
     code: 'username_taken',
     error: 'That username is taken.',
   }
+}
+
+export function formatGuestUsername(n: number): string {
+  return `guest #${n}`
+}
+
+export function isGuestUsername(name: string): boolean {
+  return /^guest #\d+$/.test(name)
 }

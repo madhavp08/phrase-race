@@ -8,15 +8,25 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS accounts (
   id TEXT PRIMARY KEY,
-  email TEXT NOT NULL,
+  email TEXT,
   username TEXT NOT NULL,
+  anonymous_id TEXT,
+  guest_number INTEGER,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE accounts ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS anonymous_id TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS guest_number INTEGER;
 
 CREATE UNIQUE INDEX IF NOT EXISTS accounts_email_lower_idx
   ON accounts (lower(email));
 CREATE UNIQUE INDEX IF NOT EXISTS accounts_username_lower_idx
   ON accounts (lower(username));
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_anonymous_id_idx
+  ON accounts (anonymous_id) WHERE anonymous_id IS NOT NULL;
+
+CREATE SEQUENCE IF NOT EXISTS guest_number_seq AS BIGINT START WITH 0 MINVALUE 0;
 
 CREATE TABLE IF NOT EXISTS test_runs (
   id TEXT PRIMARY KEY,
@@ -79,6 +89,8 @@ CREATE TABLE IF NOT EXISTS leaderboard_scores (
   mode_label TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE leaderboard_scores ADD COLUMN IF NOT EXISTS display_name TEXT;
 
 CREATE INDEX IF NOT EXISTS model_results_provider_idx
   ON model_results (provider, model, status);

@@ -4,6 +4,8 @@ import {
   parseAccountFields,
   validateEmail,
   validateUsername,
+  formatGuestUsername,
+  isGuestUsername,
 } from './account'
 
 describe('username / email', () => {
@@ -57,5 +59,22 @@ describe('decideAccountAction', () => {
     ])
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.code).toBe('username_taken')
+  })
+
+  it('ignores guest rows with no email when checking registration', () => {
+    expect(
+      decideAccountAction('nova', 'a@b.co', [
+        { id: 'g', username: 'guest #0', email: null },
+      ]),
+    ).toEqual({ ok: true, action: 'create' })
+  })
+})
+
+describe('guest usernames', () => {
+  it('numbers guests from zero', () => {
+    expect(formatGuestUsername(0)).toBe('guest #0')
+    expect(formatGuestUsername(1)).toBe('guest #1')
+    expect(isGuestUsername('guest #0')).toBe(true)
+    expect(isGuestUsername('guest_0')).toBe(false)
   })
 })

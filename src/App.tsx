@@ -134,6 +134,9 @@ function App() {
   const [savedAccount, setSavedAccount] = useState<AccountFields | null>(() =>
     readSavedAccount(),
   )
+  const [youName, setYouName] = useState<string | null>(
+    () => readSavedAccount()?.username ?? null,
+  )
   const [livePrimaryId, setLivePrimaryId] = useState(() =>
     pickLivePrimary(parseEnabledProviders(), []),
   )
@@ -146,11 +149,11 @@ function App() {
   )
 
   const refreshBoard = useCallback(async (username?: string | null) => {
-    const you = username ?? readSavedAccount()?.username
+    const you = username ?? youName ?? readSavedAccount()?.username
     const result = await fetchLeaderboard()
     setBoardError(result.error ?? null)
     setBoard(markYou(result.entries, you))
-  }, [])
+  }, [youName])
 
   const persistPendingRun = useCallback(
     async (account?: AccountFields): Promise<boolean> => {
@@ -170,7 +173,10 @@ function App() {
       if (account) {
         writeSavedAccount(account)
         setSavedAccount(account)
-        await refreshBoard(account.username)
+      }
+      if (saved.username) {
+        setYouName(saved.username)
+        await refreshBoard(saved.username)
       }
       return true
     },
@@ -463,8 +469,8 @@ function App() {
 
   const openLeaderboard = useCallback(() => {
     setLeaderboardOpen(true)
-    void refreshBoard(savedAccount?.username)
-  }, [refreshBoard, savedAccount?.username])
+    void refreshBoard(youName)
+  }, [refreshBoard, youName])
 
   const handleRegister = useCallback(
     async (account: AccountFields) => {

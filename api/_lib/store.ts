@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import {
   decideAccountAction,
+  formatGuestUsername,
+  isGuestUsername,
   type AccountConflictCode,
 } from '../../src/core/account'
 import type { ModelSummaryRow } from '../../src/core/modelSummary'
@@ -36,15 +38,20 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
   await ensureSchema()
   const sql = getSql()
   const runId = randomUUID()
-  const account = payload.account
-    ? await resolveAccount(payload.account.username, payload.account.email)
-    : null
 
   await sql.query(
     `INSERT INTO users (anonymous_id) VALUES ($1)
      ON CONFLICT (anonymous_id) DO NOTHING`,
     [payload.anonymousId],
   )
+
+  const account = payload.account
+    ? await resolveRegisteredAccount(
+        payload.account.username,
+        payload.account.email,
+        payload.anonymousId,
+      )
+    : await resolveGuestAccount(payload.anonymousId)
 
   await sql.query(
     `INSERT INTO test_runs (
@@ -126,10 +133,6 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
     }
   }
 
-  if (!account) {
-    return { id: runId, rank: null, username: null }
-  }
-
   const scoreId = randomUUID()
   const modeLabel =
     payload.modeLabel ??
@@ -137,8 +140,8 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
 
   await sql.query(
     `INSERT INTO leaderboard_scores (
-      id, account_id, run_id, wpm, accuracy, mode_label
-    ) VALUES ($1,$2,$3,$4,$5,$6)`,
+      id, account_id, run_id, wpm, accuracy, mode_label, display_name
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
     [
       scoreId,
       account.id,
@@ -146,6 +149,7 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
       payload.userMetrics.netWpm,
       payload.userMetrics.accuracy,
       modeLabel,
+      account.username,
     ],
   )
 
@@ -183,7 +187,7 @@ export async function listLeaderboard(limit = 100): Promise<LeaderboardRow[]> {
   const rows = (await sql.query(
     `SELECT
        ls.id,
-       a.username,
+       COALESCE(ls.display_name, a.username) AS username,
        ls.wpm,
        ls.accuracy,
        ls.mode_label AS "modeLabel"
@@ -281,33 +285,49 @@ export async function getModelSummary(): Promise<ModelSummaryRow[]> {
   return summaries
 }
 
-async function resolveAccount(
+async function resolveRegisteredAccount(
   username: string,
   email: string,
+  anonymousId: string,
 ): Promise<{ id: string; username: string }> {
   const sql = getSql()
   const matches = (await sql.query(
     `SELECT id, username, email
      FROM accounts
-     WHERE lower(email) = lower($1) OR lower(username) = lower($2)`,
+     WHERE (email IS NOT NULL AND lower(email) = lower($1))
+        OR lower(username) = lower($2)`,
     [email, username],
-  )) as Array<{ id: string; username: string; email: string }>
+  )) as Array<{ id: string; username: string; email: string | null }>
 
   const decision = decideAccountAction(username, email, matches)
   if (!decision.ok) {
     throw new AccountConflictError(decision.code, decision.error)
   }
 
+  const byAnon = await findAccountByAnonymousId(anonymousId)
+
   if (decision.action === 'reuse') {
+    await linkAnonymousId(decision.id, anonymousId)
     const existing = matches.find((row) => row.id === decision.id)
     return { id: decision.id, username: existing?.username ?? username }
+  }
+
+  if (byAnon && isGuestUsername(byAnon.username)) {
+    await sql.query(
+      `UPDATE accounts
+       SET username = $1, email = $2
+       WHERE id = $3`,
+      [username, email, byAnon.id],
+    )
+    return { id: byAnon.id, username }
   }
 
   const id = randomUUID()
   try {
     await sql.query(
-      `INSERT INTO accounts (id, email, username) VALUES ($1,$2,$3)`,
-      [id, email, username],
+      `INSERT INTO accounts (id, email, username, anonymous_id)
+       VALUES ($1,$2,$3,$4)`,
+      [id, email, username, anonymousId],
     )
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -320,6 +340,74 @@ async function resolveAccount(
   }
 
   return { id, username }
+}
+
+async function resolveGuestAccount(
+  anonymousId: string,
+): Promise<{ id: string; username: string }> {
+  const existing = await findAccountByAnonymousId(anonymousId)
+  if (existing) return existing
+
+  const sql = getSql()
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const n = await nextGuestNumber()
+    const username = formatGuestUsername(n)
+    const id = randomUUID()
+    try {
+      await sql.query(
+        `INSERT INTO accounts (id, email, username, anonymous_id, guest_number)
+         VALUES ($1, NULL, $2, $3, $4)`,
+        [id, username, anonymousId, n],
+      )
+      return { id, username }
+    } catch (error) {
+      if (isUniqueViolation(error) && attempt < 4) continue
+      throw error
+    }
+  }
+
+  throw new Error('Could not allocate a guest username')
+}
+
+async function findAccountByAnonymousId(
+  anonymousId: string,
+): Promise<{ id: string; username: string } | null> {
+  const sql = getSql()
+  const rows = (await sql.query(
+    `SELECT id, username FROM accounts WHERE anonymous_id = $1 LIMIT 1`,
+    [anonymousId],
+  )) as Array<{ id: string; username: string }>
+  const row = rows[0]
+  return row ? { id: row.id, username: row.username } : null
+}
+
+async function linkAnonymousId(accountId: string, anonymousId: string) {
+  const sql = getSql()
+  try {
+    await sql.query(
+      `UPDATE accounts
+       SET anonymous_id = $1
+       WHERE id = $2 AND anonymous_id IS NULL`,
+      [anonymousId, accountId],
+    )
+  } catch (error) {
+    if (isUniqueViolation(error)) return
+    throw error
+  }
+}
+
+async function nextGuestNumber(): Promise<number> {
+  const sql = getSql()
+  const rows = (await sql.query(
+    `SELECT nextval('guest_number_seq') AS n`,
+    [],
+  )) as Array<{ n: string | number }>
+  const raw = rows[0]?.n
+  const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10)
+  if (!Number.isFinite(n)) {
+    throw new Error('guest_number_seq returned a non-number')
+  }
+  return n
 }
 
 function isUniqueViolation(error: unknown): boolean {

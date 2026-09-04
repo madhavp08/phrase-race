@@ -12,7 +12,7 @@ PhraseRace measures **recognition**, not pronunciation. If you said the prompt c
 
 Two scoreboards stay separate:
 
-- **Your test** — speaking speed and accuracy according to the round judge (highest WPM that round). Feeds the user leaderboard after you register a username.
+- **Your test** — speaking speed and accuracy according to the round judge (highest WPM that round). Feeds the user leaderboard (registered username, or `guest #N` if you skip).
 - **Model results** — character accuracy, CER, WER, model-adjusted WPM, and per-word / median latency on the same audio.
 
 Latency is **end-to-end UX latency**: time from the last sent PCM chunk to the transcript event arriving in the browser. It is not isolated model inference time. The ~85 ms figure is the ScriptProcessor **audio chunk size** at 48 kHz (`4096 / 48000`), not recognition latency.
@@ -41,7 +41,9 @@ Postgres is the right store here: unique email/username constraints, joins from 
 
 ## Setup (what you need to do)
 
-1. **Pull this branch** (after the rename: `multi-model-stt-benchmark`):
+Do **not** put secrets in the git branch. `.env` is gitignored. Only `.env.example` is committed (placeholders). Fill a local `.env` on your machine, and set the same keys in the Vercel project.
+
+1. **Pull this branch**
 
    ```bash
    git fetch origin
@@ -49,7 +51,7 @@ Postgres is the right store here: unique email/username constraints, joins from 
    git pull
    ```
 
-2. **Copy env and fill keys** (never commit `.env`):
+2. **Local `.env`** (your laptop, never committed)
 
    ```bash
    cp .env.example .env
@@ -60,13 +62,38 @@ Postgres is the right store here: unique email/username constraints, joins from 
    | `DEEPGRAM_API_KEY` | Deepgram console. Needs **Member** (or equivalent) so `/auth/grant` can mint JWTs — a usage-only key will fail. | `POST /api/deepgram-token` |
    | `OPENAI_API_KEY` | OpenAI dashboard, realtime / transcription access. | `POST /api/openai-realtime-token` |
    | `ELEVENLABS_API_KEY` | ElevenLabs dashboard, Scribe realtime. | `POST /api/elevenlabs-token` |
-   | `DATABASE_URL` | Neon connection string (pooled or direct both work with `@neondatabase/serverless`). | `/api/runs`, `/api/models/summary`, `/api/leaderboard` |
+   | `DATABASE_URL` | Neon pooled connection string (see Vercel steps below). | `/api/runs`, `/api/models/summary`, `/api/leaderboard` |
 
    Optional: `VITE_BENCH_PROVIDERS=deepgram` while you only have one key.
 
-3. **Create a Neon database** (Postgres). In [Neon](https://console.neon.tech) or Vercel → Storage → Neon, create a project, copy the connection string into `.env` as `DATABASE_URL`. Schema (users, accounts, test_runs, model_results, word_results, leaderboard_scores) is applied automatically on the first API hit. You do not run SQL by hand.
+3. **Find the Neon connection string (you already created the database in Vercel)**
 
-4. **Install and run locally**
+   Easiest path, since the store was created through Vercel:
+
+   1. [Vercel Dashboard](https://vercel.com/dashboard) → your **phrase-race** project.
+   2. **Storage** → click the Neon database.
+   3. Copy **`.env.local`** or the **`DATABASE_URL`** connection string (the pooled one is fine; it often has `-pooler` in the host).
+   4. Paste it into your local `.env` as `DATABASE_URL=...`.
+
+   Alternative: **Settings → Environment Variables**. If you used **Connect Project** when creating the store, Vercel already injected `DATABASE_URL`. Reveal it there and copy it locally.
+
+   Alternative: [Neon Console](https://console.neon.tech) (org named like `Vercel: …`) → project → **Connect** → copy the connection string.
+
+   Schema (users, accounts, test_runs, model_results, word_results, leaderboard_scores) is applied automatically on the first API hit. You do not run SQL by hand.
+
+4. **What to do in Vercel** (so production/preview actually work)
+
+   1. Import this GitHub repo if the project is not connected yet (**Add New… → Project** → `madhavp08/phrase-race`). Set the Production branch to `main` (or this PR branch if you want to preview it before merge).
+   2. **Storage → your Neon database → Connect Project** → select this Vercel project and check **Production** and **Preview** (and **Development** if you use `vercel env pull`). That injects `DATABASE_URL` into Vercel. You should not need to paste the string again on Vercel if Connect Project already did it.
+   3. **Settings → Environment Variables** — confirm `DATABASE_URL` is present, then **add** (Production + Preview):
+      - `DEEPGRAM_API_KEY`
+      - `OPENAI_API_KEY`
+      - `ELEVENLABS_API_KEY`
+      Never prefix these with `VITE_`.
+   4. **Redeploy** (**Deployments → … → Redeploy**) so the new env vars are picked up. Env changes do not apply to an already-running deployment.
+   5. After deploy, open the live URL, press Tab, finish a test. Skip should show `guest #0` on **board**.
+
+5. **Install and run locally**
 
    ```bash
    npm install
@@ -75,17 +102,11 @@ Postgres is the right store here: unique email/username constraints, joins from 
 
    Restart `npm run dev` after any `.env` change. Allow the microphone. **Tab** starts a round.
 
-5. **Same variables on Vercel** (Production and Preview) if you deploy: `DEEPGRAM_API_KEY`, `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `DATABASE_URL`. A missing OpenAI / ElevenLabs key fails that adapter only. A missing `DATABASE_URL` means results still show locally but nothing is saved and the live board stays empty with an error.
-
-6. **Play a round** to seed the board. After the test, register a unique username + email (or skip). The public board shows usernames only. The same email cannot register a second username; a taken username is rejected.
+6. **Play a round.** After the test, register a unique username + email, or skip to post as `guest #0` / `guest #1` / …. The public board shows that name only. The same email cannot register a second username; a taken username is rejected. Skip reuses the same guest name on the same browser.
 
 ## Deploy
 
-1. Import the GitHub repo in Vercel.
-2. Add the env vars above (Production / Preview).
-3. Deploy. `api/*.ts` become serverless functions; `vercel.json` serves the Vite SPA for everything except `/api/*`.
-
-Local `npm run dev` mounts the same routes via `server/devApiPlugin.ts`.
+`api/*.ts` become serverless functions; `vercel.json` serves the Vite SPA for everything except `/api/*`. Local `npm run dev` mounts the same routes via `server/devApiPlugin.ts`.
 
 ## Speech architecture
 

@@ -40,4 +40,6 @@ export {
   decideAccountAction,
   validateUsername,
   validateEmail,
+  formatGuestUsername,
+  isGuestUsername,
 } from './account'

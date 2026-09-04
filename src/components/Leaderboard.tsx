@@ -80,7 +80,7 @@ export function Leaderboard({
           </>
         )}
 
-        <p className="lb-foot">usernames only · scored by the fastest model that round</p>
+        <p className="lb-foot">usernames only · skip posts as guest #0, guest #1, …</p>
       </div>
     </div>
   )
