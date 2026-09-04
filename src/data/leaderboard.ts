@@ -1,4 +1,5 @@
 import type { TestMode } from '../types'
+import { errorFromBody, readResponseBody } from './http'
 
 export interface LeaderboardEntry {
   id: string
@@ -33,10 +34,11 @@ export async function fetchLeaderboard(): Promise<{
     const response = await fetch('/api/leaderboard', {
       headers: { Accept: 'application/json' },
     })
-    const body = (await response.json()) as {
-      entries?: LeaderboardEntry[]
-      error?: string
-    }
+    const { ok, status, json, text } = await readResponseBody(response)
+    const body =
+      json && typeof json === 'object'
+        ? (json as { entries?: LeaderboardEntry[]; error?: string })
+        : {}
     const entries = Array.isArray(body.entries)
       ? body.entries.map((entry) => ({
           id: String(entry.id),
@@ -46,10 +48,15 @@ export async function fetchLeaderboard(): Promise<{
           modeLabel: String(entry.modeLabel ?? ''),
         }))
       : []
-    if (!response.ok) {
+    if (!ok) {
       return {
         entries,
-        error: body.error || `Leaderboard failed (${response.status})`,
+        error: errorFromBody(
+          status,
+          json,
+          text,
+          `Leaderboard failed (${status})`,
+        ),
       }
     }
     return { entries }

@@ -28,9 +28,10 @@ export function getSql(): NeonQueryFunction<false, false> {
 export async function ensureSchema(): Promise<void> {
   if (schemaReady) return
   const client = getSql()
-  for (const statement of SCHEMA_SQL) {
-    await client.query(statement, [])
-  }
+  // One HTTP round-trip instead of ~20 sequential DDL calls on a cold lambda.
+  await client.transaction(
+    SCHEMA_SQL.map((statement) => client.query(statement, [])),
+  )
   schemaReady = true
 }
 

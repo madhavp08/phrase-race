@@ -100,6 +100,7 @@ function App() {
   >(() => [])
   const pendingRunRef = useRef<SubmitRunInput | null>(null)
   const persistedRef = useRef(false)
+  const persistInFlightRef = useRef(false)
 
   const [phase, setPhase] = useState<GamePhase>('idle')
   const [mode, setMode] = useState<TestMode>('time')
@@ -159,26 +160,37 @@ function App() {
     async (account?: AccountFields): Promise<boolean> => {
       const pending = pendingRunRef.current
       if (!pending || persistedRef.current) return true
-      persistedRef.current = true
-      const saved = await submitRun({ ...pending, account })
-      if ('error' in saved) {
-        persistedRef.current = false
-        setSaveError(saved.error)
-        setRegisterError(saved.error)
+      if (persistInFlightRef.current) return false
+      persistInFlightRef.current = true
+      try {
+        const saved = await submitRun({ ...pending, account })
+        if ('error' in saved) {
+          setSaveError(saved.error)
+          setRegisterError(saved.error)
+          return false
+        }
+        persistedRef.current = true
+        setSaveError(null)
+        setRegisterError(null)
+        if (saved.rank != null) setLastRank(saved.rank)
+        if (account) {
+          writeSavedAccount(account)
+          setSavedAccount(account)
+        }
+        if (saved.username) {
+          setYouName(saved.username)
+          await refreshBoard(saved.username)
+        }
+        return true
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Could not save this run'
+        setSaveError(message)
+        setRegisterError(message)
         return false
+      } finally {
+        persistInFlightRef.current = false
       }
-      setSaveError(null)
-      setRegisterError(null)
-      if (saved.rank != null) setLastRank(saved.rank)
-      if (account) {
-        writeSavedAccount(account)
-        setSavedAccount(account)
-      }
-      if (saved.username) {
-        setYouName(saved.username)
-        await refreshBoard(saved.username)
-      }
-      return true
     },
     [refreshBoard],
   )
@@ -475,18 +487,24 @@ function App() {
   const handleRegister = useCallback(
     async (account: AccountFields) => {
       setRegisterSubmitting(true)
-      const ok = await persistPendingRun(account)
-      setRegisterSubmitting(false)
-      if (ok) setRegisterOpen(false)
+      try {
+        const ok = await persistPendingRun(account)
+        if (ok) setRegisterOpen(false)
+      } finally {
+        setRegisterSubmitting(false)
+      }
     },
     [persistPendingRun],
   )
 
   const handleSkipRegister = useCallback(async () => {
     setRegisterSubmitting(true)
-    await persistPendingRun()
-    setRegisterSubmitting(false)
-    setRegisterOpen(false)
+    try {
+      const ok = await persistPendingRun()
+      if (ok) setRegisterOpen(false)
+    } finally {
+      setRegisterSubmitting(false)
+    }
   }, [persistPendingRun])
 
   useEffect(() => {
@@ -507,7 +525,7 @@ function App() {
       if (registerOpen) {
         if (event.key === 'Escape') {
           event.preventDefault()
-          void handleSkipRegister()
+          if (!registerSubmitting) void handleSkipRegister()
         }
         if (event.key === 'Tab' && !typingInField) {
           event.preventDefault()
@@ -535,7 +553,14 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [goHome, handleSkipRegister, leaderboardOpen, registerOpen, startRound])
+  }, [
+    goHome,
+    handleSkipRegister,
+    leaderboardOpen,
+    registerOpen,
+    registerSubmitting,
+    startRound,
+  ])
 
   useEffect(() => {
     return () => {

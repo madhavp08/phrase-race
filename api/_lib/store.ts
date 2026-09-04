@@ -8,6 +8,7 @@ import {
 import type { ModelSummaryRow } from '../../src/core/modelSummary'
 import { percentile } from '../../src/core/sttMetrics'
 import type { RunPayload } from '../../src/core/runPayload'
+import { chunkedPackRows } from '../../src/core/sqlBatch'
 import { ensureSchema, getSql } from './db'
 
 export class AccountConflictError extends Error {
@@ -35,15 +36,11 @@ export interface LeaderboardRow {
 }
 
 export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
+  // Vercel Hobby kills this handler at ~10s. A 220-word × 3-model round used
+  // to be one Neon HTTP round-trip per word (~660). Batch into one transaction.
   await ensureSchema()
   const sql = getSql()
   const runId = randomUUID()
-
-  await sql.query(
-    `INSERT INTO users (anonymous_id) VALUES ($1)
-     ON CONFLICT (anonymous_id) DO NOTHING`,
-    [payload.anonymousId],
-  )
 
   const account = payload.account
     ? await resolveRegisteredAccount(
@@ -53,73 +50,93 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
       )
     : await resolveGuestAccount(payload.anonymousId)
 
-  await sql.query(
-    `INSERT INTO test_runs (
-      id, anonymous_id, started_at, ended_at, test_type, duration_sec,
-      reference_words, prompt_set_id, benchmark_version, scorer_version,
-      audio_format, sample_rate, openai_input_hz, outcome,
-      raw_wpm, net_wpm, accuracy, account_id, judge_provider
-    ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
-    )`,
-    [
-      runId,
-      payload.anonymousId,
-      payload.startedAt,
-      payload.endedAt,
-      payload.testType,
-      payload.durationSec,
-      payload.referenceWords,
-      payload.promptSetId,
-      payload.benchmarkVersion,
-      payload.scorerVersion,
-      payload.audioFormat,
-      payload.sampleRate,
-      payload.openaiInputHz,
-      payload.outcome,
-      payload.userMetrics.rawWpm,
-      payload.userMetrics.netWpm,
-      payload.userMetrics.accuracy,
-      account?.id ?? null,
-      payload.judgeProvider ?? null,
-    ],
-  )
+  const scoreId = randomUUID()
+  const modeLabel =
+    payload.modeLabel ??
+    (payload.testType === 'stress' ? 'custom' : `time ${payload.durationSec}`)
 
-  for (const model of payload.models) {
-    const modelId = randomUUID()
-    await sql.query(
-      `INSERT INTO model_results (
-        id, run_id, provider, model, name, config, transcript,
-        character_accuracy, cer, wer, model_net_wpm,
-        median_word_latency_ms, p95_word_latency_ms, status
-      ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
-      )`,
-      [
-        modelId,
-        runId,
-        model.provider,
-        model.model,
-        model.name,
-        model.config ?? {},
-        model.transcript,
-        model.characterAccuracy,
-        model.cer,
-        model.wer,
-        model.modelNetWpm,
-        model.medianWordLatencyMs,
-        model.p95WordLatencyMs,
-        model.status,
-      ],
-    )
-
-    for (const [index, word] of model.wordResults.entries()) {
-      await sql.query(
-        `INSERT INTO word_results (
-          id, model_result_id, word_index, expected, heard, correct,
-          interim_latency_ms, final_latency_ms
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+  const results = await sql.transaction((txn) => {
+    const queries = [
+      txn.query(
+        `INSERT INTO users (anonymous_id) VALUES ($1)
+         ON CONFLICT (anonymous_id) DO NOTHING`,
+        [payload.anonymousId],
+      ),
+      txn.query(
+        `INSERT INTO test_runs (
+          id, anonymous_id, started_at, ended_at, test_type, duration_sec,
+          reference_words, prompt_set_id, benchmark_version, scorer_version,
+          audio_format, sample_rate, openai_input_hz, outcome,
+          raw_wpm, net_wpm, accuracy, account_id, judge_provider
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+        )`,
         [
+          runId,
+          payload.anonymousId,
+          payload.startedAt,
+          payload.endedAt,
+          payload.testType,
+          payload.durationSec,
+          payload.referenceWords,
+          payload.promptSetId,
+          payload.benchmarkVersion,
+          payload.scorerVersion,
+          payload.audioFormat,
+          payload.sampleRate,
+          payload.openaiInputHz,
+          payload.outcome,
+          payload.userMetrics.rawWpm,
+          payload.userMetrics.netWpm,
+          payload.userMetrics.accuracy,
+          account.id,
+          payload.judgeProvider ?? null,
+        ],
+      ),
+    ]
+
+    for (const model of payload.models) {
+      const modelId = randomUUID()
+      queries.push(
+        txn.query(
+          `INSERT INTO model_results (
+            id, run_id, provider, model, name, config, transcript,
+            character_accuracy, cer, wer, model_net_wpm,
+            median_word_latency_ms, p95_word_latency_ms, status
+          ) VALUES (
+            $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14
+          )`,
+          [
+            modelId,
+            runId,
+            model.provider,
+            model.model,
+            model.name,
+            JSON.stringify(model.config ?? {}),
+            model.transcript,
+            model.characterAccuracy,
+            model.cer,
+            model.wer,
+            model.modelNetWpm,
+            model.medianWordLatencyMs,
+            model.p95WordLatencyMs,
+            model.status,
+          ],
+        ),
+      )
+
+      const wordPacks = chunkedPackRows(
+        [
+          'id',
+          'model_result_id',
+          'word_index',
+          'expected',
+          'heard',
+          'correct',
+          'interim_latency_ms',
+          'final_latency_ms',
+        ],
+        model.wordResults.map((word, index) => [
           randomUUID(),
           modelId,
           index,
@@ -128,42 +145,52 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
           word.correct,
           word.interimLatencyMs,
           word.finalLatencyMs,
-        ],
+        ]),
       )
+      for (const packed of wordPacks) {
+        queries.push(
+          txn.query(
+            `INSERT INTO word_results (${packed.columns}) VALUES ${packed.values}`,
+            packed.params,
+          ),
+        )
+      }
     }
-  }
 
-  const scoreId = randomUUID()
-  const modeLabel =
-    payload.modeLabel ??
-    (payload.testType === 'stress' ? 'custom' : `time ${payload.durationSec}`)
+    queries.push(
+      txn.query(
+        `INSERT INTO leaderboard_scores (
+          id, account_id, run_id, wpm, accuracy, mode_label, display_name
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [
+          scoreId,
+          account.id,
+          runId,
+          payload.userMetrics.netWpm,
+          payload.userMetrics.accuracy,
+          modeLabel,
+          account.username,
+        ],
+      ),
+      txn.query(
+        `SELECT rank FROM (
+           SELECT id, ROW_NUMBER() OVER (
+             ORDER BY wpm DESC, accuracy DESC, created_at ASC
+           ) AS rank
+           FROM leaderboard_scores
+         ) ranked
+         WHERE id = $1`,
+        [scoreId],
+      ),
+    )
 
-  await sql.query(
-    `INSERT INTO leaderboard_scores (
-      id, account_id, run_id, wpm, accuracy, mode_label, display_name
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [
-      scoreId,
-      account.id,
-      runId,
-      payload.userMetrics.netWpm,
-      payload.userMetrics.accuracy,
-      modeLabel,
-      account.username,
-    ],
-  )
+    return queries
+  })
 
-  const rankRows = (await sql.query(
-    `SELECT rank FROM (
-       SELECT id, ROW_NUMBER() OVER (
-         ORDER BY wpm DESC, accuracy DESC, created_at ASC
-       ) AS rank
-       FROM leaderboard_scores
-     ) ranked
-     WHERE id = $1`,
-    [scoreId],
-  )) as Array<{ rank: string | number }>
-
+  const last = results.at(-1)
+  const rankRows = (Array.isArray(last) ? last : []) as Array<{
+    rank: string | number
+  }>
   const rankRaw = rankRows[0]?.rank
   const rank =
     typeof rankRaw === 'number'

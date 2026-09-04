@@ -89,4 +89,15 @@ describe('validateRunPayload', () => {
     )
     expect(result.ok).toBe(false)
   })
+
+  it('accepts a JSON string body (Vercel sometimes leaves req.body unparsed)', () => {
+    const result = validateRunPayload(JSON.stringify(validBody()))
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects invalid JSON strings', () => {
+    const result = validateRunPayload('{not json')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toMatch(/json/i)
+  })
 })

@@ -20,5 +20,9 @@ export function readSavedAccount(): AccountFields | null {
 }
 
 export function writeSavedAccount(account: AccountFields) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(account))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(account))
+  } catch {
+    /* private mode / quota — registration still succeeded server-side */
+  }
 }

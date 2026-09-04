@@ -144,7 +144,7 @@ export function ResultsScreen({
         </button>
       </div>
 
-      {saveError && <p className="muted">{saveError}</p>}
+      {saveError && <p className="error-line">{saveError}</p>}
 
       <ModelResults models={modelResults} judgeName={judgeName} />
 
