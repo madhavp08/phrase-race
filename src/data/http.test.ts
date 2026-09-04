@@ -14,7 +14,7 @@ describe('errorFromBody', () => {
     ).toMatch(/timed out/i)
   })
 
-  it('unwraps Vercel FUNCTION_INVOCATION_FAILED envelopes', () => {
+  it('maps Vercel FUNCTION_INVOCATION_FAILED envelopes to a retryable message', () => {
     expect(
       errorFromBody(
         500,
@@ -22,7 +22,7 @@ describe('errorFromBody', () => {
         '',
         'x',
       ),
-    ).toBe('A server error has occurred')
+    ).toMatch(/failed to start/i)
   })
 
   it('falls back to a short text snippet', () => {

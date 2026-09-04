@@ -50,6 +50,103 @@
   gap: 1rem;
 }
 
+.profile-chip {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-color);
+  padding: 0.2rem 0.35rem 0.2rem 0.2rem;
+  border-radius: 999px;
+  background: var(--sub-alt-color);
+}
+
+.profile-btn:hover {
+  color: var(--main-color);
+}
+
+.profile-avatar {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--text-color);
+  color: var(--bg-color);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.profile-name {
+  font-size: 0.85rem;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.55rem);
+  width: min(18rem, 78vw);
+  padding: 0.9rem 1rem 0.85rem;
+  background: var(--sub-alt-color);
+  border-radius: var(--roundness);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.45);
+  z-index: 20;
+}
+
+.profile-kicker {
+  margin: 0;
+  color: var(--sub-color);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
+.profile-panel h2 {
+  margin: 0.15rem 0 0.75rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.profile-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem 0.75rem;
+}
+
+.profile-stats li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.profile-stats span {
+  color: var(--sub-color);
+  font-size: 0.7rem;
+}
+
+.profile-stats strong {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-mode,
+.profile-foot {
+  margin: 0.7rem 0 0;
+  color: var(--sub-color);
+  font-size: 0.72rem;
+}
+
 .nav-btn {
   color: var(--sub-color);
   font-size: 0.9rem;
@@ -204,7 +301,7 @@
 }
 
 .words-wrapper {
-  height: clamp(6.5rem, 16vw, 8rem);
+  height: clamp(10.5rem, 28vw, 14rem);
   overflow: hidden;
   position: relative;
   width: 100%;
@@ -229,6 +326,12 @@
 .word.active {
   background: var(--sub-alt-color);
   box-shadow: 0 0 0 0.22em var(--sub-alt-color);
+  border-radius: 2px;
+}
+
+.word.spoken {
+  outline: 1px dashed var(--sub-color);
+  outline-offset: 0.12em;
   border-radius: 2px;
 }
 
@@ -998,7 +1101,7 @@
   }
 
   .words-wrapper {
-    height: 6.25rem;
+    height: 9.5rem;
   }
 
   .results-more {

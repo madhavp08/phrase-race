@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Leaderboard,
   ModelBoard,
+  ProfileChip,
   RegisterModal,
   ResultsScreen,
   TestScreen,
@@ -18,7 +19,9 @@ import {
 } from './core'
 import { SENTENCE_PROMPT_SET_ID } from './data/sentences'
 import type { AccountFields } from './core/account'
+import { pacedWordIndex, timedPromptWordCount } from './core/readingPace'
 import { readSavedAccount, writeSavedAccount } from './data/accountStorage'
+import { getAnonymousId } from './data/anonymousId'
 import {
   fetchLeaderboard,
   markYou,
@@ -26,6 +29,7 @@ import {
   type LeaderboardEntry,
 } from './data/leaderboard'
 import { submitRun, type SubmitRunInput } from './data/submitRun'
+import { fetchProfile, type PublicProfile } from './data/profile'
 import {
   isSpeechRecognitionSupported,
   parseEnabledProviders,
@@ -68,12 +72,18 @@ function wordsFromPhrase(phrase: string): WordState[] {
   }))
 }
 
-function previewWords(mode: TestMode, customPhrase: string): WordState[] {
+function previewWords(
+  mode: TestMode,
+  customPhrase: string,
+  durationSec = 30,
+): WordState[] {
   if (mode === 'custom') return wordsFromPhrase(customPhrase)
-  return buildSentenceStream(220).map((token, index) => ({
-    ...createWordState(token.word, token.sentenceEnd),
-    status: index === 0 ? 'active' : 'pending',
-  }))
+  return buildSentenceStream(timedPromptWordCount(durationSec)).map(
+    (token, index) => ({
+      ...createWordState(token.word, token.sentenceEnd),
+      status: index === 0 ? 'active' : 'pending',
+    }),
+  )
 }
 
 function resolveDuration(
@@ -115,6 +125,7 @@ function App() {
     previewWords('time', ''),
   )
   const [wordIndex, setWordIndex] = useState(0)
+  const [paceIndex, setPaceIndex] = useState(0)
   const [attempts, setAttempts] = useState<PhraseAttempt[]>([])
   const [stats, setStats] = useState<RoundStats>(emptyStats)
   const [timeLeftSec, setTimeLeftSec] = useState(30)
@@ -139,6 +150,8 @@ function App() {
   const [youName, setYouName] = useState<string | null>(
     () => readSavedAccount()?.username ?? null,
   )
+  const [profile, setProfile] = useState<PublicProfile | null>(null)
+  const [profileError, setProfileError] = useState<string | null>(null)
   const [livePrimaryId, setLivePrimaryId] = useState(() =>
     pickLivePrimary(parseEnabledProviders(), []),
   )
@@ -149,6 +162,21 @@ function App() {
     customDuration,
     durationSec,
   )
+
+  const refreshProfile = useCallback(async (username?: string | null) => {
+    const saved = username ?? readSavedAccount()?.username
+    if (!saved) {
+      setProfile(null)
+      setProfileError(null)
+      return
+    }
+    const result = await fetchProfile({
+      username: saved,
+      anonymousId: getAnonymousId(),
+    })
+    setProfile(result.profile)
+    setProfileError(result.error)
+  }, [])
 
   const refreshBoard = useCallback(async (username?: string | null) => {
     const you = username ?? youName ?? readSavedAccount()?.username
@@ -177,10 +205,12 @@ function App() {
         if (account) {
           writeSavedAccount(account)
           setSavedAccount(account)
+          await refreshProfile(account.username)
         }
         if (saved.username) {
           setYouName(saved.username)
           await refreshBoard(saved.username)
+          if (!account) await refreshProfile(saved.username)
         }
         return true
       } catch (error) {
@@ -193,7 +223,7 @@ function App() {
         persistInFlightRef.current = false
       }
     },
-    [refreshBoard],
+    [refreshBoard, refreshProfile],
   )
 
   const syncFromEngine = useCallback(() => {
@@ -238,8 +268,9 @@ function App() {
     setJudgeName(null)
     setSaveError(null)
     setModelsOpen(false)
-    setWords(previewWords(mode, customPhrase))
+    setWords(previewWords(mode, customPhrase, activeDuration))
     setWordIndex(0)
+    setPaceIndex(0)
     setAttempts([])
     setStats(emptyStats)
     setTimeLeftSec(activeDuration)
@@ -299,8 +330,9 @@ function App() {
 
   const prepareIdle = useCallback(
     (nextMode: TestMode, seconds: number, phrase: string) => {
-      setWords(previewWords(nextMode, phrase))
+      setWords(previewWords(nextMode, phrase, seconds))
       setWordIndex(0)
+      setPaceIndex(0)
       setAttempts([])
       setStats(emptyStats)
       setTimeLeftSec(seconds)
@@ -399,14 +431,20 @@ function App() {
         const elapsed = performance.now() - startedAt
         setTimeLeftSec(Math.max(0, Math.ceil((durationMs - elapsed) / 1000)))
         setElapsedSec(Math.floor(elapsed / 1000))
+        setPaceIndex(
+          pacedWordIndex(elapsed, engineRef.current.getState().words.length),
+        )
         setStats(engineRef.current.getStats())
-      }, 100)
+      }, 50)
     } else {
       tickTimerRef.current = window.setInterval(() => {
         const elapsed = performance.now() - startedAt
         setElapsedSec(Math.floor(elapsed / 1000))
+        setPaceIndex(
+          pacedWordIndex(elapsed, engineRef.current.getState().words.length),
+        )
         setStats(engineRef.current.getStats())
-      }, 100)
+      }, 50)
     }
   }, [phase, connectionState, mode, activeDuration, finishRound])
 
@@ -451,6 +489,7 @@ function App() {
       setPhase('playing')
       setTimeLeftSec(seconds)
       setElapsedSec(0)
+      setPaceIndex(0)
       setLastRank(null)
       setHeardLog([])
       setModelResults([])
@@ -516,6 +555,11 @@ function App() {
       prepareIdle(mode, activeDuration, customPhrase)
     }
   }, [activeDuration, customPhrase, mode, phase, prepareIdle])
+
+  useEffect(() => {
+    if (!savedAccount?.username) return
+    void refreshProfile(savedAccount.username)
+  }, [refreshProfile, savedAccount?.username])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -603,6 +647,13 @@ function App() {
             </button>
           </nav>
         </div>
+        {savedAccount && (
+          <ProfileChip
+            username={savedAccount.username}
+            profile={profile}
+            error={profileError}
+          />
+        )}
       </header>
 
       <main className="content">
@@ -624,6 +675,7 @@ function App() {
           <TestScreen
             words={words}
             wordIndex={wordIndex}
+            paceIndex={paceIndex}
             mode={mode}
             durationSec={durationSec}
             customDuration={customDuration}

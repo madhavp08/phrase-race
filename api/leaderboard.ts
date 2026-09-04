@@ -1,6 +1,4 @@
 /// <reference types="node" />
-import { getDatabaseUrl } from './_lib/db'
-import { listLeaderboard } from './_lib/store'
 
 export default async function handler(
   req: { method?: string },
@@ -10,20 +8,22 @@ export default async function handler(
     setHeader: (key: string, value: string) => void
   },
 ) {
-  if (req.method !== 'GET') {
-    res.status(405).json({ error: 'Method not allowed', entries: [] })
-    return
-  }
-
-  if (!getDatabaseUrl()) {
-    res.status(503).json({
-      error: 'DATABASE_URL is not set.',
-      entries: [],
-    })
-    return
-  }
-
   try {
+    if (req.method !== 'GET') {
+      res.status(405).json({ error: 'Method not allowed', entries: [] })
+      return
+    }
+
+    const { getDatabaseUrl } = await import('./_lib/db')
+    if (!getDatabaseUrl()) {
+      res.status(503).json({
+        error: 'DATABASE_URL is not set.',
+        entries: [],
+      })
+      return
+    }
+
+    const { listLeaderboard } = await import('./_lib/store')
     const entries = await listLeaderboard()
     res.setHeader('Cache-Control', 'no-store')
     res.status(200).json({ entries })

@@ -2,10 +2,14 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import deepgramHandler from '../api/deepgram-token.ts'
 import elevenLabsHandler from '../api/elevenlabs-token.ts'
+import healthHandler from '../api/health.ts'
 import leaderboardHandler from '../api/leaderboard.ts'
 import summaryHandler from '../api/models/summary.ts'
 import openaiHandler from '../api/openai-realtime-token.ts'
+import profileHandler from '../api/profile.ts'
 import runsHandler from '../api/runs.ts'
+
+type ConnectReq = IncomingMessage & { originalUrl?: string }
 
 type VercelRes = {
   statusCode: number
@@ -58,17 +62,32 @@ function readBody(req: IncomingMessage): Promise<unknown> {
 }
 
 function mount(
-  server: { middlewares: { use: (path: string, handler: (req: IncomingMessage, res: ServerResponse) => void) => void } },
+  server: {
+    middlewares: {
+      use: (
+        path: string,
+        handler: (req: IncomingMessage, res: ServerResponse) => void,
+      ) => void
+    }
+  },
   path: string,
   handler: (
-    req: { method?: string; body?: unknown },
+    req: { method?: string; body?: unknown; url?: string },
     res: VercelRes,
   ) => Promise<void> | void,
 ) {
   server.middlewares.use(path, (req, res) => {
     void (async () => {
       const body = await readBody(req)
-      await handler({ method: req.method, body }, vercelRes(res))
+      const connectReq = req as ConnectReq
+      await handler(
+        {
+          method: req.method,
+          body,
+          url: connectReq.originalUrl || req.url,
+        },
+        vercelRes(res),
+      )
     })()
   })
 }
@@ -82,12 +101,14 @@ export function devApiPlugin(): Plugin {
       ) => void
     }
   }) => {
+    mount(server, '/api/health', healthHandler)
     mount(server, '/api/deepgram-token', deepgramHandler)
     mount(server, '/api/openai-realtime-token', openaiHandler)
     mount(server, '/api/elevenlabs-token', elevenLabsHandler)
     mount(server, '/api/runs', runsHandler)
     mount(server, '/api/models/summary', summaryHandler)
     mount(server, '/api/leaderboard', leaderboardHandler)
+    mount(server, '/api/profile', profileHandler)
   }
 
   return {

@@ -1,7 +1,6 @@
 /// <reference types="node" />
-import { validateRunPayload } from '../src/core/runPayload'
-import { getDatabaseUrl } from './_lib/db'
-import { AccountConflictError, createRun } from './_lib/store'
+import { validateRunPayload } from './_lib/runPayload'
+import { AccountConflictError } from './_lib/errors'
 
 export default async function handler(
   req: {
@@ -26,6 +25,7 @@ export default async function handler(
       return
     }
 
+    const { getDatabaseUrl } = await import('./_lib/db')
     if (!getDatabaseUrl()) {
       res.status(503).json({
         error:
@@ -34,13 +34,19 @@ export default async function handler(
       return
     }
 
+    const { createRun } = await import('./_lib/store')
     const result = await createRun(parsed.value)
     res.setHeader('Cache-Control', 'no-store')
     res.status(201).json(result)
   } catch (error) {
     console.error('[api/runs]', error)
-    if (error instanceof AccountConflictError) {
-      res.status(409).json({ error: error.message, code: error.code })
+    if (
+      error instanceof AccountConflictError ||
+      (error instanceof Error && error.name === 'AccountConflictError')
+    ) {
+      const code =
+        error instanceof AccountConflictError ? error.code : 'username_taken'
+      res.status(409).json({ error: error.message, code })
       return
     }
     res.status(502).json({

@@ -19,6 +19,12 @@ export {
   pickTongueTwister,
   pickTongueTwisterText,
 } from './game'
+export {
+  READING_WPM,
+  pacedWordIndex,
+  timedPromptWordCount,
+  displayWordIndex,
+} from './readingPace'
 export { buildSentenceStream, asPromptTokens } from './prompts'
 export type { PromptToken, PromptWord } from './prompts'
 export {

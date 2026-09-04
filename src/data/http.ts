@@ -24,20 +24,43 @@ export function errorFromBody(
 ): string {
   if (json && typeof json === 'object' && 'error' in json) {
     const err = (json as { error?: unknown }).error
-    if (typeof err === 'string' && err.trim()) return err
+    if (typeof err === 'string' && err.trim()) {
+      return friendlyServerCrash(status, err, text) ?? err
+    }
     if (err && typeof err === 'object' && 'message' in err) {
       const message = (err as { message?: unknown }).message
-      if (typeof message === 'string' && message.trim()) return message
+      if (typeof message === 'string' && message.trim()) {
+        return friendlyServerCrash(status, message, text) ?? message
+      }
     }
   }
   if (status === 500) {
-    return 'Save failed on the server. Try again after the latest deploy finishes.'
+    return (
+      friendlyServerCrash(status, '', text) ??
+      'Save failed on the server. Try again after the latest deploy finishes.'
+    )
   }
   if (status === 504 || status === 524) {
     return 'Save timed out on the server. Try again in a moment.'
   }
   const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 160)
   return snippet || fallback
+}
+
+function friendlyServerCrash(
+  status: number,
+  message: string,
+  text: string,
+): string | null {
+  const blob = `${message} ${text}`
+  if (
+    status >= 500 &&
+    (/server error has occurred/i.test(blob) ||
+      /FUNCTION_INVOCATION_FAILED/i.test(blob))
+  ) {
+    return 'The score server failed to start. Wait for a fresh deploy and try again.'
+  }
+  return null
 }
 
 export function withTimeout(timeoutMs: number): {
