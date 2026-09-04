@@ -28,12 +28,16 @@ export function alignWord(expected: string, typed: string): LetterState[] {
   return letters
 }
 
-export function createWordState(expected: string): WordState {
+export function createWordState(
+  expected: string,
+  sentenceEnd = false,
+): WordState {
   return {
     expected,
     typed: '',
     letters: expected.split('').map((char) => ({ char, status: 'untyped' })),
     status: 'pending',
+    sentenceEnd,
   }
 }
 

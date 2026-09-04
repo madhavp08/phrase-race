@@ -19,6 +19,8 @@ export {
   pickTongueTwister,
   pickTongueTwisterText,
 } from './game'
+export { buildSentenceStream, asPromptTokens } from './prompts'
+export type { PromptToken, PromptWord } from './prompts'
 export {
   characterErrorRate,
   wordErrorRate,

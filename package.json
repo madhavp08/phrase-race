@@ -10,6 +10,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "oxlint",
+    "clear-board": "node scripts/clear-board.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
