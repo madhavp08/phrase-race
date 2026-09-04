@@ -3,23 +3,15 @@ import {
   decideAccountAction,
   formatGuestUsername,
   isGuestUsername,
-  type AccountConflictCode,
-} from '../../src/core/account'
-import type { ModelSummaryRow } from '../../src/core/modelSummary'
-import { percentile } from '../../src/core/sttMetrics'
-import type { RunPayload } from '../../src/core/runPayload'
-import { chunkedPackRows } from '../../src/core/sqlBatch'
+} from './account'
+import { AccountConflictError } from './errors'
+import type { ModelSummaryRow } from './modelSummary'
+import type { RunPayload } from './runPayload'
+import { chunkedPackRows } from './sqlBatch'
+import { average, percentile } from './stats'
 import { ensureSchema, getSql } from './db'
 
-export class AccountConflictError extends Error {
-  readonly code: AccountConflictCode
-
-  constructor(code: AccountConflictCode, message: string) {
-    super(message)
-    this.name = 'AccountConflictError'
-    this.code = code
-  }
-}
+export { AccountConflictError } from './errors'
 
 export interface CreateRunResult {
   id: string
@@ -35,9 +27,20 @@ export interface LeaderboardRow {
   modeLabel: string
 }
 
+export interface PublicProfile {
+  username: string
+  guest: boolean
+  runCount: number
+  bestWpm: number | null
+  bestAccuracy: number | null
+  rank: number | null
+  modeLabel: string | null
+}
+
 export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
-  // Vercel Hobby kills this handler at ~10s. A 220-word × 3-model round used
-  // to be one Neon HTTP round-trip per word (~660). Batch into one transaction.
+  // Vercel Hobby kills this handler at ~10s. Avoid Neon HTTP transactions
+  // (they have crashed the isolate with FUNCTION_INVOCATION_FAILED) and
+  // avoid one round-trip per word.
   await ensureSchema()
   const sql = getSql()
   const runId = randomUUID()
@@ -55,151 +58,140 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
     payload.modeLabel ??
     (payload.testType === 'stress' ? 'custom' : `time ${payload.durationSec}`)
 
+  await sql.query(
+    `INSERT INTO users (anonymous_id) VALUES ($1)
+     ON CONFLICT (anonymous_id) DO NOTHING`,
+    [payload.anonymousId],
+  )
+
+  await sql.query(
+    `INSERT INTO test_runs (
+      id, anonymous_id, started_at, ended_at, test_type, duration_sec,
+      reference_words, prompt_set_id, benchmark_version, scorer_version,
+      audio_format, sample_rate, openai_input_hz, outcome,
+      raw_wpm, net_wpm, accuracy, account_id, judge_provider
+    ) VALUES (
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+    )`,
+    [
+      runId,
+      payload.anonymousId,
+      payload.startedAt,
+      payload.endedAt,
+      payload.testType,
+      payload.durationSec,
+      payload.referenceWords,
+      payload.promptSetId,
+      payload.benchmarkVersion,
+      payload.scorerVersion,
+      payload.audioFormat,
+      payload.sampleRate,
+      payload.openaiInputHz,
+      payload.outcome,
+      payload.userMetrics.rawWpm,
+      payload.userMetrics.netWpm,
+      payload.userMetrics.accuracy,
+      account.id,
+      payload.judgeProvider ?? null,
+    ],
+  )
+
   const pendingWordInserts: Array<{ text: string; params: unknown[] }> = []
-  const results = await sql.transaction((txn) => {
-    const queries = [
-      txn.query(
-        `INSERT INTO users (anonymous_id) VALUES ($1)
-         ON CONFLICT (anonymous_id) DO NOTHING`,
-        [payload.anonymousId],
-      ),
-      txn.query(
-        `INSERT INTO test_runs (
-          id, anonymous_id, started_at, ended_at, test_type, duration_sec,
-          reference_words, prompt_set_id, benchmark_version, scorer_version,
-          audio_format, sample_rate, openai_input_hz, outcome,
-          raw_wpm, net_wpm, accuracy, account_id, judge_provider
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
-        )`,
-        [
-          runId,
-          payload.anonymousId,
-          payload.startedAt,
-          payload.endedAt,
-          payload.testType,
-          payload.durationSec,
-          payload.referenceWords,
-          payload.promptSetId,
-          payload.benchmarkVersion,
-          payload.scorerVersion,
-          payload.audioFormat,
-          payload.sampleRate,
-          payload.openaiInputHz,
-          payload.outcome,
-          payload.userMetrics.rawWpm,
-          payload.userMetrics.netWpm,
-          payload.userMetrics.accuracy,
-          account.id,
-          payload.judgeProvider ?? null,
-        ],
-      ),
-    ]
 
-    for (const model of payload.models) {
-      const modelId = randomUUID()
-      queries.push(
-        txn.query(
-          `INSERT INTO model_results (
-            id, run_id, provider, model, name, config, transcript,
-            character_accuracy, cer, wer, model_net_wpm,
-            median_word_latency_ms, p95_word_latency_ms, status
-          ) VALUES (
-            $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14
-          )`,
-          [
-            modelId,
-            runId,
-            model.provider,
-            model.model,
-            model.name,
-            JSON.stringify(model.config ?? {}),
-            model.transcript,
-            model.characterAccuracy,
-            model.cer,
-            model.wer,
-            model.modelNetWpm,
-            model.medianWordLatencyMs,
-            model.p95WordLatencyMs,
-            model.status,
-          ],
-        ),
-      )
-
-      const wordPacks = chunkedPackRows(
-        [
-          'id',
-          'model_result_id',
-          'word_index',
-          'expected',
-          'heard',
-          'correct',
-          'interim_latency_ms',
-          'final_latency_ms',
-        ],
-        model.wordResults.map((word, index) => [
-          randomUUID(),
-          modelId,
-          index,
-          word.expected,
-          word.heard,
-          word.correct,
-          word.interimLatencyMs,
-          word.finalLatencyMs,
-        ]),
-      )
-      for (const packed of wordPacks) {
-        pendingWordInserts.push({
-          text: `INSERT INTO word_results (${packed.columns}) VALUES ${packed.values}`,
-          params: packed.params,
-        })
-      }
-    }
-
-    queries.push(
-      txn.query(
-        `INSERT INTO leaderboard_scores (
-          id, account_id, run_id, wpm, accuracy, mode_label, display_name
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [
-          scoreId,
-          account.id,
-          runId,
-          payload.userMetrics.netWpm,
-          payload.userMetrics.accuracy,
-          modeLabel,
-          account.username,
-        ],
-      ),
-      txn.query(
-        `SELECT rank FROM (
-           SELECT id, ROW_NUMBER() OVER (
-             ORDER BY wpm DESC, accuracy DESC, created_at ASC
-           ) AS rank
-           FROM leaderboard_scores
-         ) ranked
-         WHERE id = $1`,
-        [scoreId],
-      ),
+  for (const model of payload.models) {
+    const modelId = randomUUID()
+    await sql.query(
+      `INSERT INTO model_results (
+        id, run_id, provider, model, name, config, transcript,
+        character_accuracy, cer, wer, model_net_wpm,
+        median_word_latency_ms, p95_word_latency_ms, status
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14
+      )`,
+      [
+        modelId,
+        runId,
+        model.provider,
+        model.model,
+        model.name,
+        JSON.stringify(model.config ?? {}),
+        model.transcript,
+        model.characterAccuracy,
+        model.cer,
+        model.wer,
+        model.modelNetWpm,
+        model.medianWordLatencyMs,
+        model.p95WordLatencyMs,
+        model.status,
+      ],
     )
 
-    return queries
-  })
+    const wordPacks = chunkedPackRows(
+      [
+        'id',
+        'model_result_id',
+        'word_index',
+        'expected',
+        'heard',
+        'correct',
+        'interim_latency_ms',
+        'final_latency_ms',
+      ],
+      model.wordResults.map((word, index) => [
+        randomUUID(),
+        modelId,
+        index,
+        word.expected,
+        word.heard,
+        word.correct,
+        word.interimLatencyMs,
+        word.finalLatencyMs,
+      ]),
+    )
+    for (const packed of wordPacks) {
+      pendingWordInserts.push({
+        text: `INSERT INTO word_results (${packed.columns}) VALUES ${packed.values}`,
+        params: packed.params,
+      })
+    }
+  }
+
+  await sql.query(
+    `INSERT INTO leaderboard_scores (
+      id, account_id, run_id, wpm, accuracy, mode_label, display_name
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      scoreId,
+      account.id,
+      runId,
+      payload.userMetrics.netWpm,
+      payload.userMetrics.accuracy,
+      modeLabel,
+      account.username,
+    ],
+  )
+
+  const rankRows = (await sql.query(
+    `SELECT rank FROM (
+       SELECT id, ROW_NUMBER() OVER (
+         ORDER BY wpm DESC, accuracy DESC, created_at ASC
+       ) AS rank
+       FROM leaderboard_scores
+     ) ranked
+     WHERE id = $1`,
+    [scoreId],
+  )) as Array<{ rank: string | number }>
 
   if (pendingWordInserts.length > 0) {
     try {
-      await sql.transaction((txn) =>
-        pendingWordInserts.map((query) => txn.query(query.text, query.params)),
-      )
+      for (const query of pendingWordInserts) {
+        await sql.query(query.text, query.params)
+      }
     } catch (error) {
       console.error('[PhraseRace] word_results insert failed', error)
     }
   }
 
-  const last = results.at(-1)
-  const rankRows = (Array.isArray(last) ? last : []) as Array<{
-    rank: string | number
-  }>
   const rankRaw = rankRows[0]?.rank
   const rank =
     typeof rankRaw === 'number'
@@ -247,6 +239,79 @@ export async function listLeaderboard(limit = 100): Promise<LeaderboardRow[]> {
     accuracy: Math.round(row.accuracy),
     modeLabel: row.modeLabel,
   }))
+}
+
+export async function getPublicProfile(opts: {
+  anonymousId?: string | null
+  username?: string | null
+}): Promise<PublicProfile | null> {
+  await ensureSchema()
+  const sql = getSql()
+  const anonymousId = opts.anonymousId?.trim() || null
+  const username = opts.username?.trim() || null
+  if (!anonymousId && !username) return null
+
+  const accounts = (await sql.query(
+    `SELECT id, username, email
+     FROM accounts
+     WHERE ($1::text IS NOT NULL AND anonymous_id = $1)
+        OR ($2::text IS NOT NULL AND lower(username) = lower($2))
+     ORDER BY CASE WHEN email IS NOT NULL THEN 0 ELSE 1 END
+     LIMIT 1`,
+    [anonymousId, username],
+  )) as Array<{ id: string; username: string; email: string | null }>
+
+  const account = accounts[0]
+  if (!account) return null
+
+  const counts = (await sql.query(
+    `SELECT COUNT(*)::int AS n FROM leaderboard_scores WHERE account_id = $1`,
+    [account.id],
+  )) as Array<{ n: string | number }>
+  const runCount = Number(counts[0]?.n ?? 0)
+
+  const best = (await sql.query(
+    `SELECT id, wpm, accuracy, mode_label AS "modeLabel"
+     FROM leaderboard_scores
+     WHERE account_id = $1
+     ORDER BY wpm DESC, accuracy DESC, created_at ASC
+     LIMIT 1`,
+    [account.id],
+  )) as Array<{
+    id: string
+    wpm: number
+    accuracy: number
+    modeLabel: string
+  }>
+  const top = best[0] ?? null
+
+  let rank: number | null = null
+  if (top) {
+    const ranked = (await sql.query(
+      `SELECT rank FROM (
+         SELECT id, ROW_NUMBER() OVER (
+           ORDER BY wpm DESC, accuracy DESC, created_at ASC
+         ) AS rank
+         FROM leaderboard_scores
+       ) ranked
+       WHERE id = $1`,
+      [top.id],
+    )) as Array<{ rank: string | number }>
+    const raw = ranked[0]?.rank
+    const parsed =
+      typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10)
+    rank = Number.isFinite(parsed) ? parsed : null
+  }
+
+  return {
+    username: account.username,
+    guest: account.email == null || isGuestUsername(account.username),
+    runCount,
+    bestWpm: top ? Math.round(top.wpm) : null,
+    bestAccuracy: top ? Math.round(top.accuracy) : null,
+    rank,
+    modeLabel: top?.modeLabel ?? null,
+  }
 }
 
 export async function getModelSummary(): Promise<ModelSummaryRow[]> {
@@ -451,9 +516,4 @@ function isUniqueViolation(error: unknown): boolean {
   const code = 'code' in error ? String(error.code) : ''
   const message = 'message' in error ? String(error.message) : ''
   return code === '23505' || /unique|duplicate key/i.test(message)
-}
-
-function average(values: number[]): number | null {
-  if (values.length === 0) return null
-  return values.reduce((sum, n) => sum + n, 0) / values.length
 }

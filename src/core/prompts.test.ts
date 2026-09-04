@@ -29,7 +29,8 @@ describe('buildSentenceStream', () => {
 
   it('has enough original sentences to fill a timed round', () => {
     const words = SENTENCES.flatMap((sentence) => tokenizeWords(sentence))
-    expect(SENTENCES.length).toBeGreaterThanOrEqual(80)
+    expect(SENTENCES.length).toBeGreaterThanOrEqual(200)
     expect(words.length).toBeGreaterThanOrEqual(220)
+    expect(new Set(words).size).toBeGreaterThanOrEqual(700)
   })
 })

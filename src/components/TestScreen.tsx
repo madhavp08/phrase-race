@@ -7,6 +7,7 @@ import { Words } from './Words'
 interface TestScreenProps {
   words: WordState[]
   wordIndex: number
+  paceIndex?: number
   mode: TestMode
   durationSec: number
   customDuration: string
@@ -37,6 +38,7 @@ interface TestScreenProps {
 export function TestScreen({
   words,
   wordIndex,
+  paceIndex = 0,
   mode,
   durationSec,
   customDuration,
@@ -95,7 +97,7 @@ export function TestScreen({
 
       <div className="typing-test">
         <div className="prompt-label">say this</div>
-        <Words words={words} wordIndex={wordIndex} />
+        <Words words={words} wordIndex={wordIndex} paceIndex={paceIndex} />
 
         {playing && (
           <div className="heard-box" aria-live="polite">
