@@ -29,8 +29,6 @@ export function ConfigBar({
   onCustomPhraseChange,
   onShufflePhrase,
 }: ConfigBarProps) {
-  const durationValue = isCustomDuration ? customDuration : String(durationSec)
-
   return (
     <div className="config">
       <div className="config-bar">
@@ -74,15 +72,15 @@ export function ConfigBar({
             min={5}
             max={600}
             inputMode="numeric"
-            value={durationValue}
+            value={isCustomDuration ? customDuration : ''}
+            placeholder="sec"
             onChange={(event) => onCustomDurationChange(event.target.value)}
             onFocus={() => {
               if (!isCustomDuration) onSelectCustomDuration()
             }}
             aria-label="Duration in seconds"
-            title="seconds"
+            title="custom seconds"
           />
-          <span className="config-hint">s</span>
         </div>
 
         {mode === 'custom' && (
