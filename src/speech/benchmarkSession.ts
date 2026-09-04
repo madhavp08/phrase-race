@@ -1,5 +1,9 @@
 import { fanOutAudio, ShadowEvaluator } from '../core/shadowEval'
-import { parseEnabledProviders, type ProviderId } from './constants'
+import {
+  CONNECT_WATCHDOG_MS,
+  parseEnabledProviders,
+  type ProviderId,
+} from './constants'
 import { createProvider } from './factory'
 import { createMicCapture, type MicCapture } from './mic'
 import type {
@@ -39,6 +43,8 @@ export class BenchmarkSession {
   private evaluators = new Map<string, ShadowEvaluator>()
   private lastChunkAt = 0
   private samplesSent = 0
+  private connectWatchdog: ReturnType<typeof setTimeout> | null = null
+  private connectErrors: string[] = []
 
   constructor(options: BenchmarkSessionOptions) {
     this.handlers = options
@@ -78,6 +84,8 @@ export class BenchmarkSession {
     this.requestedFailed = false
     this.providers = []
     this.evaluators.clear()
+    this.connectErrors = []
+    this.clearConnectWatchdog()
 
     const ids = parseEnabledProviders(this.providerFilter)
     this.requestedPrimaryId =
@@ -95,6 +103,7 @@ export class BenchmarkSession {
         },
         onError: (message) => {
           this.evaluators.get(id)?.fail(message)
+          this.noteConnectError(id, message)
           if (id === this.requestedPrimaryId) this.requestedFailed = true
           if (this.lockedPrimaryId === id) this.handlers.onError?.(message)
           else this.maybeLockPrimary()
@@ -138,6 +147,7 @@ export class BenchmarkSession {
           const message =
             error instanceof Error ? error.message : `${provider.id} failed`
           this.evaluators.get(provider.id)?.fail(message)
+          this.noteConnectError(provider.id, message)
           if (provider.id === this.requestedPrimaryId) {
             this.requestedFailed = true
           }
@@ -150,8 +160,11 @@ export class BenchmarkSession {
 
     this.maybeLockPrimary()
     if (!this.lockedPrimaryId && this.wantLive) {
-      this.handlers.onError?.('No speech model connected.')
-      this.handlers.onStateChange?.('errored')
+      if (this.anyStillConnecting()) {
+        this.scheduleConnectWatchdog()
+      } else {
+        this.failNoModel()
+      }
     }
   }
 
@@ -184,6 +197,7 @@ export class BenchmarkSession {
   async close(): Promise<void> {
     this.wantLive = false
     this.streaming = false
+    this.clearConnectWatchdog()
     this.capture?.stop()
     this.capture = null
     await Promise.all(this.providers.map((provider) => provider.close()))
@@ -214,8 +228,48 @@ export class BenchmarkSession {
 
   private lockPrimary(id: string) {
     this.lockedPrimaryId = id
+    this.clearConnectWatchdog()
     this.startFanout()
     this.handlers.onStateChange?.('live')
+  }
+
+  private anyStillConnecting(): boolean {
+    return this.providers.some((provider) => {
+      const state = provider.getState()
+      return state === 'connecting' || state === 'reconnecting'
+    })
+  }
+
+  private scheduleConnectWatchdog() {
+    this.clearConnectWatchdog()
+    this.connectWatchdog = setTimeout(() => {
+      this.connectWatchdog = null
+      if (this.lockedPrimaryId || !this.wantLive) return
+      this.maybeLockPrimary()
+      if (!this.lockedPrimaryId && this.wantLive) this.failNoModel()
+    }, CONNECT_WATCHDOG_MS)
+  }
+
+  private clearConnectWatchdog() {
+    if (this.connectWatchdog == null) return
+    clearTimeout(this.connectWatchdog)
+    this.connectWatchdog = null
+  }
+
+  private noteConnectError(id: string, message: string) {
+    const line = `${id}: ${message}`
+    if (!this.connectErrors.includes(line)) this.connectErrors.push(line)
+  }
+
+  private failNoModel() {
+    this.clearConnectWatchdog()
+    const detail = this.connectErrors[0]
+    this.handlers.onError?.(
+      detail
+        ? `No speech model connected. ${detail}`
+        : 'No speech model connected. Tokens may still be opening a socket — try again, and confirm the STT API keys on Vercel.',
+    )
+    this.handlers.onStateChange?.('errored')
   }
 
   private startFanout() {

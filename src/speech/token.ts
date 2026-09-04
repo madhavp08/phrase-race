@@ -16,19 +16,28 @@ async function fetchAccessToken(
     )
   }
 
-  let body: DeepgramTokenResponse & { error?: string; token?: string }
-  try {
-    body = (await response.json()) as DeepgramTokenResponse & {
-      error?: string
-      token?: string
+  const text = await response.text()
+  let parsed: unknown = null
+  if (text) {
+    try {
+      parsed = JSON.parse(text) as unknown
+    } catch {
+      parsed = null
     }
-  } catch {
-    throw new Error(`${label} token endpoint returned invalid JSON`)
   }
 
-  const token = body.access_token || body.token
+  const body =
+    parsed && typeof parsed === 'object'
+      ? (parsed as DeepgramTokenResponse & { error?: string; token?: string })
+      : null
+  const token = body?.access_token || body?.token
   if (!response.ok || !token) {
-    throw new Error(body.error || `Could not get ${label} access token`)
+    throw new Error(
+      body?.error ||
+        (response.status === 504 || response.status === 524
+          ? `${label} token timed out on the server`
+          : `${label} token failed (${response.status}). Check that the API key is set on Vercel.`),
+    )
   }
 
   return token
