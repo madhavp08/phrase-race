@@ -9,16 +9,19 @@ interface UseSpeechRecognitionOptions {
   onFinalTranscript: (transcript: string) => void
   onLiveHypothesis?: (hypothesis: string) => void
   enabled: boolean
+  /** Live caret stream. Frozen at session start via a ref. */
+  primaryId?: string
 }
 
 /**
  * React facade over the multi-model benchmark session.
- * Gameplay still consumes only the primary (Deepgram) live/final stream.
+ * Gameplay consumes only the locked primary live/final stream.
  */
 export function useSpeechRecognition({
   onFinalTranscript,
   onLiveHypothesis,
   enabled,
+  primaryId,
 }: UseSpeechRecognitionOptions) {
   const [listening, setListening] = useState(false)
   const [liveHypothesis, setLiveHypothesis] = useState('')
@@ -35,6 +38,7 @@ export function useSpeechRecognition({
   const onFinalRef = useRef(onFinalTranscript)
   const onLiveRef = useRef(onLiveHypothesis)
   const enabledRef = useRef(enabled)
+  const primaryIdRef = useRef(primaryId)
 
   useEffect(() => {
     onFinalRef.current = onFinalTranscript
@@ -47,6 +51,10 @@ export function useSpeechRecognition({
   useEffect(() => {
     enabledRef.current = enabled
   }, [enabled])
+
+  useEffect(() => {
+    primaryIdRef.current = primaryId
+  }, [primaryId])
 
   const abort = useCallback(() => {
     void sessionRef.current?.close()
@@ -72,6 +80,7 @@ export function useSpeechRecognition({
     setLiveHypothesis('')
 
     const session = new BenchmarkSession({
+      primaryId: primaryIdRef.current,
       onLive: (hypothesis) => {
         if (!enabledRef.current) return
         setLiveHypothesis(hypothesis)

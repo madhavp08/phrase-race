@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { validateRunPayload } from '../src/core/runPayload'
 import { getDatabaseUrl } from './_lib/db'
-import { createRun } from './_lib/store'
+import { AccountConflictError, createRun } from './_lib/store'
 
 export default async function handler(
   req: {
@@ -34,10 +34,14 @@ export default async function handler(
   }
 
   try {
-    const id = await createRun(parsed.value)
+    const result = await createRun(parsed.value)
     res.setHeader('Cache-Control', 'no-store')
-    res.status(201).json({ id })
+    res.status(201).json(result)
   } catch (error) {
+    if (error instanceof AccountConflictError) {
+      res.status(409).json({ error: error.message, code: error.code })
+      return
+    }
     res.status(502).json({
       error: error instanceof Error ? error.message : 'Failed to save run',
     })

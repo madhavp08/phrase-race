@@ -5,6 +5,7 @@ import {
 } from '../speech/constants'
 import { TARGET_SAMPLE_RATE } from '../speech/mic'
 import type { ModelResult } from '../speech/types'
+import type { AccountFields } from '../core/account'
 import type { RunPayload, TestType } from '../core/runPayload'
 import type { RoundStats } from '../types'
 import { getAnonymousId } from './anonymousId'
@@ -18,11 +19,18 @@ export interface SubmitRunInput {
   outcome: RunPayload['outcome']
   stats: RoundStats
   models: ModelResult[]
+  judgeProvider?: string
+  modeLabel?: string
+  account?: AccountFields
 }
+
+export type SubmitRunResult =
+  | { id: string; rank: number | null; username: string | null }
+  | { error: string; code?: string }
 
 export async function submitRun(
   input: SubmitRunInput,
-): Promise<{ id: string } | { error: string }> {
+): Promise<SubmitRunResult> {
   const payload: RunPayload = {
     anonymousId: getAnonymousId(),
     startedAt: new Date(input.startedAt).toISOString(),
@@ -43,6 +51,9 @@ export async function submitRun(
       accuracy: input.stats.accuracy,
     },
     models: input.models,
+    judgeProvider: input.judgeProvider,
+    modeLabel: input.modeLabel,
+    account: input.account,
   }
 
   try {
@@ -51,11 +62,21 @@ export async function submitRun(
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(payload),
     })
-    const body = (await response.json()) as { id?: string; error?: string }
-    if (!response.ok || !body.id) {
-      return { error: body.error || `Save failed (${response.status})` }
+    const body = (await response.json()) as {
+      id?: string
+      rank?: number | null
+      username?: string | null
+      error?: string
+      code?: string
     }
-    return { id: body.id }
+    if (!response.ok || !body.id) {
+      return { error: body.error || `Save failed (${response.status})`, code: body.code }
+    }
+    return {
+      id: body.id,
+      rank: typeof body.rank === 'number' ? body.rank : null,
+      username: body.username ?? null,
+    }
   } catch (error) {
     return {
       error:

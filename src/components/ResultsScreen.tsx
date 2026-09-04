@@ -10,6 +10,7 @@ interface ResultsScreenProps {
   durationSec: number
   mode: TestMode
   rank: number | null
+  judgeName: string | null
   modelResults: ModelResult[]
   saveError: string | null
   onPlayAgain: () => void
@@ -28,6 +29,7 @@ export function ResultsScreen({
   durationSec,
   mode,
   rank,
+  judgeName,
   modelResults,
   saveError,
   onPlayAgain,
@@ -37,6 +39,9 @@ export function ResultsScreen({
   return (
     <section className="results">
       <p className="results-kicker">your test</p>
+      {judgeName && (
+        <p className="results-judge">scored by {judgeName} · highest WPM this round</p>
+      )}
       <div className="results-hero">
         <div className="result-group">
           <div className="top">wpm</div>
@@ -141,7 +146,7 @@ export function ResultsScreen({
 
       {saveError && <p className="muted">{saveError}</p>}
 
-      <ModelResults models={modelResults} />
+      <ModelResults models={modelResults} judgeName={judgeName} />
 
       <p className="keytip results-tip">
         <span>tab</span> — home

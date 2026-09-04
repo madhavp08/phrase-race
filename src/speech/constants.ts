@@ -2,7 +2,6 @@ export const CANONICAL_SAMPLE_RATE = 16_000
 export const OPENAI_INPUT_HZ = 24_000
 export const BENCHMARK_VERSION = 'v1'
 export const SCORER_VERSION = 'v1'
-export const PRIMARY_PROVIDER_ID = 'deepgram'
 
 export const KEEP_ALIVE_MS = 3_000
 export const RECONNECT_BASE_MS = 350
@@ -26,8 +25,5 @@ export function parseEnabledProviders(raw?: string): ProviderId[] {
     )
 
   const unique = [...new Set(parsed)]
-  if (!unique.includes(PRIMARY_PROVIDER_ID)) {
-    unique.unshift(PRIMARY_PROVIDER_ID)
-  }
-  return unique
+  return unique.length > 0 ? unique : [...ALL_PROVIDER_IDS]
 }

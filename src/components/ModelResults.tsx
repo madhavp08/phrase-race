@@ -7,9 +7,10 @@ function fmt(value: number, digits = 1): string {
 
 interface ModelResultsProps {
   models: ModelResult[]
+  judgeName?: string | null
 }
 
-export function ModelResults({ models }: ModelResultsProps) {
+export function ModelResults({ models, judgeName }: ModelResultsProps) {
   if (models.length === 0) return null
 
   return (
@@ -32,10 +33,16 @@ export function ModelResults({ models }: ModelResultsProps) {
           {models.map((model) => (
             <li
               key={model.provider}
-              className={model.status === 'valid' ? 'ok' : 'fail'}
+              className={[
+                model.status === 'valid' ? 'ok' : 'fail',
+                judgeName && model.name === judgeName ? 'judge' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
             >
               <span className="model-name">
                 {model.name}
+                {judgeName && model.name === judgeName ? <em>judge</em> : null}
                 {model.status !== 'valid' && (
                   <em title={model.error}>{model.status.replace('_', ' ')}</em>
                 )}

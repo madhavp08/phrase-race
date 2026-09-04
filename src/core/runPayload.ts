@@ -1,4 +1,5 @@
 import type { ModelResult, ModelResultStatus } from '../speech/types'
+import { parseAccountFields, type AccountFields } from './account'
 
 const SECRET_KEY = /^(api[_-]?key|access_token|secret|authorization|xi-api-key)$/i
 
@@ -34,6 +35,9 @@ export interface RunPayload {
   outcome: RunOutcome
   userMetrics: RunUserMetrics
   models: ModelResult[]
+  judgeProvider?: string
+  account?: AccountFields
+  modeLabel?: string
 }
 
 export type RunPayloadError = { ok: false; error: string }
@@ -185,6 +189,27 @@ export function validateRunPayload(raw: unknown): RunPayloadResult {
     return { ok: false, error: 'each model needs a provider' }
   }
 
+  let judgeProvider: string | undefined
+  const judgeRaw = asString(raw.judgeProvider)
+  if (judgeRaw) judgeProvider = judgeRaw
+
+  let modeLabel: string | undefined
+  const modeRaw = asString(raw.modeLabel)
+  if (modeRaw) modeLabel = modeRaw
+
+  let account: AccountFields | undefined
+  if (raw.account !== undefined && raw.account !== null) {
+    if (!isRecord(raw.account)) {
+      return { ok: false, error: 'account must be an object' }
+    }
+    const parsedAccount = parseAccountFields(
+      typeof raw.account.username === 'string' ? raw.account.username : '',
+      typeof raw.account.email === 'string' ? raw.account.email : '',
+    )
+    if (!parsedAccount.ok) return { ok: false, error: parsedAccount.error }
+    account = parsedAccount.value
+  }
+
   return {
     ok: true,
     value: {
@@ -203,6 +228,9 @@ export function validateRunPayload(raw: unknown): RunPayloadResult {
       outcome: outcome as RunOutcome,
       userMetrics: { rawWpm, netWpm, accuracy },
       models: models as ModelResult[],
+      judgeProvider,
+      account,
+      modeLabel,
     },
   }
 }

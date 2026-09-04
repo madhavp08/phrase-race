@@ -1,18 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { parseEnabledProviders, PRIMARY_PROVIDER_ID } from './constants'
+import { parseEnabledProviders } from './constants'
 
 describe('parseEnabledProviders', () => {
-  it('always includes Deepgram as primary', () => {
-    expect(parseEnabledProviders('openai')).toEqual([
-      PRIMARY_PROVIDER_ID,
-      'openai',
-    ])
+  it('does not force Deepgram into a filtered list', () => {
+    expect(parseEnabledProviders('openai')).toEqual(['openai'])
   })
 
   it('dedupes and ignores unknown ids', () => {
     expect(parseEnabledProviders('deepgram,whisper,openai,deepgram')).toEqual([
       'deepgram',
       'openai',
+    ])
+  })
+
+  it('falls back to all providers when the list is empty', () => {
+    expect(parseEnabledProviders('')).toEqual([
+      'deepgram',
+      'openai',
+      'elevenlabs',
     ])
   })
 })

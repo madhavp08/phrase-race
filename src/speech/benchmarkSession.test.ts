@@ -8,6 +8,7 @@ class FakeProvider implements STTProvider {
   chunks: ArrayBuffer[] = []
   state: SpeechConnectionState = 'idle'
   handlers: ProviderHandlers
+  failOnConnect = false
 
   constructor(id: string, handlers: ProviderHandlers) {
     this.id = id
@@ -25,6 +26,11 @@ class FakeProvider implements STTProvider {
   }
 
   async connect() {
+    if (this.failOnConnect) {
+      this.state = 'errored'
+      this.handlers.onError?.(`${this.id} failed`)
+      throw new Error(`${this.id} failed`)
+    }
     this.state = 'live'
     this.handlers.onStateChange?.('live')
   }
@@ -55,10 +61,12 @@ class FakeProvider implements STTProvider {
 const fakes = new Map<string, FakeProvider>()
 let onChunk: ((pcm: ArrayBuffer) => void) | null = null
 const stopMic = vi.fn()
+const failConnectIds = new Set<string>()
 
 vi.mock('./factory', () => ({
   createProvider: (id: string, handlers: ProviderHandlers) => {
     const fake = new FakeProvider(id, handlers)
+    fake.failOnConnect = failConnectIds.has(id)
     fakes.set(id, fake)
     return fake
   },
@@ -82,6 +90,7 @@ describe('BenchmarkSession', () => {
     fakes.clear()
     onChunk = null
     stopMic.mockClear()
+    failConnectIds.clear()
   })
 
   it('fans identical PCM to every adapter and scores them', async () => {
@@ -118,5 +127,43 @@ describe('BenchmarkSession', () => {
       'provider_failure',
     )
     expect(stopMic).toHaveBeenCalled()
+  })
+
+  it('drives GameEngine from the requested primary, not Deepgram by default', async () => {
+    const { BenchmarkSession } = await import('./benchmarkSession')
+    const onFinal = vi.fn()
+    const session = new BenchmarkSession({
+      providers: 'deepgram,openai,elevenlabs',
+      primaryId: 'openai',
+      onFinal,
+    })
+
+    await session.start()
+    expect(session.lockedPrimary()).toBe('openai')
+
+    fakes.get('deepgram')?.emit('from-deepgram', true)
+    fakes.get('openai')?.emit('from-openai', true)
+    expect(onFinal).toHaveBeenCalledTimes(1)
+    expect(onFinal).toHaveBeenCalledWith('from-openai')
+  })
+
+  it('falls back to a live model when the requested primary fails', async () => {
+    failConnectIds.add('openai')
+    const { BenchmarkSession } = await import('./benchmarkSession')
+    const onFinal = vi.fn()
+    const onError = vi.fn()
+    const session = new BenchmarkSession({
+      providers: 'deepgram,openai',
+      primaryId: 'openai',
+      onFinal,
+      onError,
+    })
+
+    await session.start()
+    expect(session.lockedPrimary()).toBe('deepgram')
+    expect(onError).not.toHaveBeenCalled()
+
+    fakes.get('deepgram')?.emit('fallback', true)
+    expect(onFinal).toHaveBeenCalledWith('fallback')
   })
 })

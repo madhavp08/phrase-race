@@ -3,6 +3,14 @@ export const SCHEMA_SQL = [
     anonymous_id TEXT PRIMARY KEY,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  `CREATE TABLE IF NOT EXISTS accounts (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    username TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS accounts_email_lower_idx ON accounts (lower(email))`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS accounts_username_lower_idx ON accounts (lower(username))`,
   `CREATE TABLE IF NOT EXISTS test_runs (
     id TEXT PRIMARY KEY,
     anonymous_id TEXT NOT NULL REFERENCES users(anonymous_id),
@@ -23,6 +31,8 @@ export const SCHEMA_SQL = [
     accuracy DOUBLE PRECISION NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  `ALTER TABLE test_runs ADD COLUMN IF NOT EXISTS account_id TEXT`,
+  `ALTER TABLE test_runs ADD COLUMN IF NOT EXISTS judge_provider TEXT`,
   `CREATE TABLE IF NOT EXISTS model_results (
     id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE CASCADE,
@@ -49,6 +59,16 @@ export const SCHEMA_SQL = [
     interim_latency_ms DOUBLE PRECISION,
     final_latency_ms DOUBLE PRECISION
   )`,
+  `CREATE TABLE IF NOT EXISTS leaderboard_scores (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts(id),
+    run_id TEXT REFERENCES test_runs(id) ON DELETE SET NULL,
+    wpm DOUBLE PRECISION NOT NULL,
+    accuracy DOUBLE PRECISION NOT NULL,
+    mode_label TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
   `CREATE INDEX IF NOT EXISTS model_results_provider_idx ON model_results (provider, model, status)`,
   `CREATE INDEX IF NOT EXISTS test_runs_type_idx ON test_runs (test_type, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS leaderboard_scores_rank_idx ON leaderboard_scores (wpm DESC, accuracy DESC, created_at ASC)`,
 ]

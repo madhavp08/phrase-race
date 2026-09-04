@@ -7,6 +7,7 @@ export interface ModelSummaryRow {
   avgCharacterAccuracy: number | null
   avgCer: number | null
   avgWer: number | null
+  avgModelNetWpm: number | null
   medianOfMedianLatencyMs: number | null
   p95OfMedianLatencyMs: number | null
 }

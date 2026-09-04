@@ -1,13 +1,44 @@
 import { randomUUID } from 'node:crypto'
+import {
+  decideAccountAction,
+  type AccountConflictCode,
+} from '../../src/core/account'
 import type { ModelSummaryRow } from '../../src/core/modelSummary'
 import { percentile } from '../../src/core/sttMetrics'
 import type { RunPayload } from '../../src/core/runPayload'
 import { ensureSchema, getSql } from './db'
 
-export async function createRun(payload: RunPayload): Promise<string> {
+export class AccountConflictError extends Error {
+  readonly code: AccountConflictCode
+
+  constructor(code: AccountConflictCode, message: string) {
+    super(message)
+    this.name = 'AccountConflictError'
+    this.code = code
+  }
+}
+
+export interface CreateRunResult {
+  id: string
+  rank: number | null
+  username: string | null
+}
+
+export interface LeaderboardRow {
+  id: string
+  username: string
+  wpm: number
+  accuracy: number
+  modeLabel: string
+}
+
+export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
   await ensureSchema()
   const sql = getSql()
   const runId = randomUUID()
+  const account = payload.account
+    ? await resolveAccount(payload.account.username, payload.account.email)
+    : null
 
   await sql.query(
     `INSERT INTO users (anonymous_id) VALUES ($1)
@@ -20,9 +51,9 @@ export async function createRun(payload: RunPayload): Promise<string> {
       id, anonymous_id, started_at, ended_at, test_type, duration_sec,
       reference_words, prompt_set_id, benchmark_version, scorer_version,
       audio_format, sample_rate, openai_input_hz, outcome,
-      raw_wpm, net_wpm, accuracy
+      raw_wpm, net_wpm, accuracy, account_id, judge_provider
     ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
     )`,
     [
       runId,
@@ -42,6 +73,8 @@ export async function createRun(payload: RunPayload): Promise<string> {
       payload.userMetrics.rawWpm,
       payload.userMetrics.netWpm,
       payload.userMetrics.accuracy,
+      account?.id ?? null,
+      payload.judgeProvider ?? null,
     ],
   )
 
@@ -93,10 +126,88 @@ export async function createRun(payload: RunPayload): Promise<string> {
     }
   }
 
-  return runId
+  if (!account) {
+    return { id: runId, rank: null, username: null }
+  }
+
+  const scoreId = randomUUID()
+  const modeLabel =
+    payload.modeLabel ??
+    (payload.testType === 'stress' ? 'custom' : `time ${payload.durationSec}`)
+
+  await sql.query(
+    `INSERT INTO leaderboard_scores (
+      id, account_id, run_id, wpm, accuracy, mode_label
+    ) VALUES ($1,$2,$3,$4,$5,$6)`,
+    [
+      scoreId,
+      account.id,
+      runId,
+      payload.userMetrics.netWpm,
+      payload.userMetrics.accuracy,
+      modeLabel,
+    ],
+  )
+
+  const rankRows = (await sql.query(
+    `SELECT rank FROM (
+       SELECT id, ROW_NUMBER() OVER (
+         ORDER BY wpm DESC, accuracy DESC, created_at ASC
+       ) AS rank
+       FROM leaderboard_scores
+     ) ranked
+     WHERE id = $1`,
+    [scoreId],
+  )) as Array<{ rank: string | number }>
+
+  const rankRaw = rankRows[0]?.rank
+  const rank =
+    typeof rankRaw === 'number'
+      ? rankRaw
+      : typeof rankRaw === 'string'
+        ? Number.parseInt(rankRaw, 10)
+        : null
+
+  return {
+    id: runId,
+    rank: Number.isFinite(rank) ? (rank as number) : null,
+    username: account.username,
+  }
 }
 
 export type { ModelSummaryRow }
+
+export async function listLeaderboard(limit = 100): Promise<LeaderboardRow[]> {
+  await ensureSchema()
+  const sql = getSql()
+  const rows = (await sql.query(
+    `SELECT
+       ls.id,
+       a.username,
+       ls.wpm,
+       ls.accuracy,
+       ls.mode_label AS "modeLabel"
+     FROM leaderboard_scores ls
+     JOIN accounts a ON a.id = ls.account_id
+     ORDER BY ls.wpm DESC, ls.accuracy DESC, ls.created_at ASC
+     LIMIT $1`,
+    [limit],
+  )) as Array<{
+    id: string
+    username: string
+    wpm: number
+    accuracy: number
+    modeLabel: string
+  }>
+
+  return rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    wpm: Math.round(row.wpm),
+    accuracy: Math.round(row.accuracy),
+    modeLabel: row.modeLabel,
+  }))
+}
 
 export async function getModelSummary(): Promise<ModelSummaryRow[]> {
   await ensureSchema()
@@ -109,6 +220,7 @@ export async function getModelSummary(): Promise<ModelSummaryRow[]> {
        mr.character_accuracy AS "characterAccuracy",
        mr.cer,
        mr.wer,
+       mr.model_net_wpm AS "modelNetWpm",
        mr.median_word_latency_ms AS "medianWordLatencyMs",
        mr.status
      FROM model_results mr
@@ -121,6 +233,7 @@ export async function getModelSummary(): Promise<ModelSummaryRow[]> {
     characterAccuracy: number | null
     cer: number | null
     wer: number | null
+    modelNetWpm: number | null
     medianWordLatencyMs: number | null
     status: string
   }>
@@ -142,6 +255,9 @@ export async function getModelSummary(): Promise<ModelSummaryRow[]> {
       .filter((n): n is number => n !== null)
     const cer = valid.map((row) => row.cer).filter((n): n is number => n !== null)
     const wer = valid.map((row) => row.wer).filter((n): n is number => n !== null)
+    const wpm = valid
+      .map((row) => row.modelNetWpm)
+      .filter((n): n is number => n !== null)
     const lat = valid
       .map((row) => row.medianWordLatencyMs)
       .filter((n): n is number => n !== null)
@@ -155,6 +271,7 @@ export async function getModelSummary(): Promise<ModelSummaryRow[]> {
       avgCharacterAccuracy: average(acc),
       avgCer: average(cer),
       avgWer: average(wer),
+      avgModelNetWpm: average(wpm),
       medianOfMedianLatencyMs: lat.length ? percentile(lat, 0.5) : null,
       p95OfMedianLatencyMs: lat.length ? percentile(lat, 0.95) : null,
     })
@@ -162,6 +279,54 @@ export async function getModelSummary(): Promise<ModelSummaryRow[]> {
 
   summaries.sort((a, b) => a.provider.localeCompare(b.provider))
   return summaries
+}
+
+async function resolveAccount(
+  username: string,
+  email: string,
+): Promise<{ id: string; username: string }> {
+  const sql = getSql()
+  const matches = (await sql.query(
+    `SELECT id, username, email
+     FROM accounts
+     WHERE lower(email) = lower($1) OR lower(username) = lower($2)`,
+    [email, username],
+  )) as Array<{ id: string; username: string; email: string }>
+
+  const decision = decideAccountAction(username, email, matches)
+  if (!decision.ok) {
+    throw new AccountConflictError(decision.code, decision.error)
+  }
+
+  if (decision.action === 'reuse') {
+    const existing = matches.find((row) => row.id === decision.id)
+    return { id: decision.id, username: existing?.username ?? username }
+  }
+
+  const id = randomUUID()
+  try {
+    await sql.query(
+      `INSERT INTO accounts (id, email, username) VALUES ($1,$2,$3)`,
+      [id, email, username],
+    )
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new AccountConflictError(
+        'username_taken',
+        'That username or email is already registered.',
+      )
+    }
+    throw error
+  }
+
+  return { id, username }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const code = 'code' in error ? String(error.code) : ''
+  const message = 'message' in error ? String(error.message) : ''
+  return code === '23505' || /unique|duplicate key/i.test(message)
 }
 
 function average(values: number[]): number | null {

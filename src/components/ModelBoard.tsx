@@ -78,6 +78,7 @@ export function ModelBoard({ open, onClose }: ModelBoardProps) {
               <span>type</span>
               <span>n</span>
               <span>acc</span>
+              <span>wpm</span>
               <span>wer</span>
               <span>latency</span>
             </div>
@@ -88,6 +89,7 @@ export function ModelBoard({ open, onClose }: ModelBoardProps) {
                   <span className="lb-mode">{row.testType}</span>
                   <span>{row.validRuns}</span>
                   <span>{fmt(row.avgCharacterAccuracy, 1, '%')}</span>
+                  <span>{fmt(row.avgModelNetWpm, 0)}</span>
                   <span>{fmt(row.avgWer, 2)}</span>
                   <span>{fmt(row.medianOfMedianLatencyMs, 0, 'ms')}</span>
                 </li>

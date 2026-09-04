@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import deepgramHandler from '../api/deepgram-token.ts'
 import elevenLabsHandler from '../api/elevenlabs-token.ts'
+import leaderboardHandler from '../api/leaderboard.ts'
 import summaryHandler from '../api/models/summary.ts'
 import openaiHandler from '../api/openai-realtime-token.ts'
 import runsHandler from '../api/runs.ts'
@@ -86,6 +87,7 @@ export function devApiPlugin(): Plugin {
     mount(server, '/api/elevenlabs-token', elevenLabsHandler)
     mount(server, '/api/runs', runsHandler)
     mount(server, '/api/models/summary', summaryHandler)
+    mount(server, '/api/leaderboard', leaderboardHandler)
   }
 
   return {

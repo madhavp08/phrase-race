@@ -10,7 +10,7 @@ export {
 } from './deepgramClient'
 export { TranscriptAssembler } from './transcriptAssembler'
 export { BenchmarkSession } from './benchmarkSession'
-export { parseEnabledProviders, PRIMARY_PROVIDER_ID } from './constants'
+export { parseEnabledProviders } from './constants'
 export type {
   SpeechConnectionState,
   SpeechHandlers,

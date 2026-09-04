@@ -64,4 +64,29 @@ describe('validateRunPayload', () => {
     const result = validateRunPayload(validBody({ models: [] }))
     expect(result.ok).toBe(false)
   })
+
+  it('accepts a username + email account', () => {
+    const result = validateRunPayload(
+      validBody({
+        account: { username: 'Nova', email: 'Nova@Example.com' },
+        judgeProvider: 'openai',
+        modeLabel: 'time 30',
+      }),
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.account).toEqual({
+        username: 'Nova',
+        email: 'nova@example.com',
+      })
+      expect(result.value.judgeProvider).toBe('openai')
+    }
+  })
+
+  it('rejects a bad username on the run payload', () => {
+    const result = validateRunPayload(
+      validBody({ account: { username: 'x', email: 'a@b.co' } }),
+    )
+    expect(result.ok).toBe(false)
+  })
 })
