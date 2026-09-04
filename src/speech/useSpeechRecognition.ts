@@ -94,6 +94,7 @@ export function useSpeechRecognition({
         setError(message)
       },
       onStateChange: (state) => {
+        if (state === 'live') setError(null)
         setConnectionState(state)
         setListening(
           state === 'live' ||

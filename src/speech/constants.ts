@@ -7,6 +7,8 @@ export const KEEP_ALIVE_MS = 3_000
 export const RECONNECT_BASE_MS = 350
 export const RECONNECT_MAX_MS = 3_000
 export const MAX_RECONNECT_ATTEMPTS = 8
+/** Wait this long for the first WebSocket to go live after tokens return. */
+export const CONNECT_WATCHDOG_MS = 8_000
 
 export const ALL_PROVIDER_IDS = ['deepgram', 'openai', 'elevenlabs'] as const
 export type ProviderId = (typeof ALL_PROVIDER_IDS)[number]

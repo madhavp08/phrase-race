@@ -9,6 +9,7 @@ class FakeProvider implements STTProvider {
   state: SpeechConnectionState = 'idle'
   handlers: ProviderHandlers
   failOnConnect = false
+  delayLive = false
 
   constructor(id: string, handlers: ProviderHandlers) {
     this.id = id
@@ -31,6 +32,14 @@ class FakeProvider implements STTProvider {
       this.handlers.onError?.(`${this.id} failed`)
       throw new Error(`${this.id} failed`)
     }
+    this.state = 'connecting'
+    this.handlers.onStateChange?.('connecting')
+    if (!this.delayLive) {
+      this.goLive()
+    }
+  }
+
+  goLive() {
     this.state = 'live'
     this.handlers.onStateChange?.('live')
   }
@@ -62,11 +71,13 @@ const fakes = new Map<string, FakeProvider>()
 let onChunk: ((pcm: ArrayBuffer) => void) | null = null
 const stopMic = vi.fn()
 const failConnectIds = new Set<string>()
+const delayLiveIds = new Set<string>()
 
 vi.mock('./factory', () => ({
   createProvider: (id: string, handlers: ProviderHandlers) => {
     const fake = new FakeProvider(id, handlers)
     fake.failOnConnect = failConnectIds.has(id)
+    fake.delayLive = delayLiveIds.has(id)
     fakes.set(id, fake)
     return fake
   },
@@ -91,6 +102,7 @@ describe('BenchmarkSession', () => {
     onChunk = null
     stopMic.mockClear()
     failConnectIds.clear()
+    delayLiveIds.clear()
   })
 
   it('fans identical PCM to every adapter and scores them', async () => {
@@ -165,5 +177,46 @@ describe('BenchmarkSession', () => {
 
     fakes.get('deepgram')?.emit('fallback', true)
     expect(onFinal).toHaveBeenCalledWith('fallback')
+  })
+
+  it('does not error while sockets are still opening after tokens return', async () => {
+    delayLiveIds.add('deepgram')
+    delayLiveIds.add('openai')
+    const { BenchmarkSession } = await import('./benchmarkSession')
+    const onError = vi.fn()
+    const onState = vi.fn()
+    const session = new BenchmarkSession({
+      providers: 'deepgram,openai',
+      primaryId: 'openai',
+      onError,
+      onStateChange: onState,
+    })
+
+    await session.start()
+    expect(session.lockedPrimary()).toBeNull()
+    expect(onError).not.toHaveBeenCalled()
+
+    fakes.get('openai')?.goLive()
+    expect(session.lockedPrimary()).toBe('openai')
+    expect(onError).not.toHaveBeenCalled()
+    expect(onState).toHaveBeenCalledWith('live')
+    await session.close()
+  })
+
+  it('errors only after every adapter has actually failed', async () => {
+    failConnectIds.add('deepgram')
+    failConnectIds.add('openai')
+    const { BenchmarkSession } = await import('./benchmarkSession')
+    const onError = vi.fn()
+    const session = new BenchmarkSession({
+      providers: 'deepgram,openai',
+      onError,
+    })
+
+    await session.start()
+    expect(session.lockedPrimary()).toBeNull()
+    expect(onError).toHaveBeenCalled()
+    expect(String(onError.mock.calls[0]?.[0])).toMatch(/No speech model connected/i)
+    await session.close()
   })
 })
