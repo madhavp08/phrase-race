@@ -1,16 +1,21 @@
-import {
-  TARGET_SAMPLE_RATE,
-  createMicCapture,
-  type MicCapture,
-} from './mic'
+import { TARGET_SAMPLE_RATE } from './mic'
 import { fetchDeepgramToken } from './token'
 import { TranscriptAssembler } from './transcriptAssembler'
-import type { SpeechConnectionState, SpeechHandlers } from './types'
+import {
+  KEEP_ALIVE_MS,
+  MAX_RECONNECT_ATTEMPTS,
+  RECONNECT_BASE_MS,
+  RECONNECT_MAX_MS,
+} from './constants'
+import type {
+  ProviderHandlers,
+  STTProvider,
+  SpeechConnectionState,
+} from './types'
 
-const KEEP_ALIVE_MS = 3_000
-const RECONNECT_BASE_MS = 350
-const RECONNECT_MAX_MS = 3_000
-const MAX_RECONNECT_ATTEMPTS = 8
+export const DEEPGRAM_MODEL = 'nova-3'
+export const DEEPGRAM_ENDPOINTING_MS = 100
+export const DEEPGRAM_UTTERANCE_END_MS = 1000
 
 /**
  * Deepgram live listen params for short English phrases / word racing.
@@ -20,17 +25,15 @@ const MAX_RECONNECT_ATTEMPTS = 8
  */
 export function buildDeepgramListenUrl(): string {
   const params = new URLSearchParams({
-    model: 'nova-3',
+    model: DEEPGRAM_MODEL,
     language: 'en-US',
     encoding: 'linear16',
     sample_rate: String(TARGET_SAMPLE_RATE),
     channels: '1',
     interim_results: 'true',
     smart_format: 'true',
-    // Snappier finals for short spoken words.
-    endpointing: '100',
-    // Emit UtteranceEnd so we can flush trailing interim text.
-    utterance_end_ms: '1000',
+    endpointing: String(DEEPGRAM_ENDPOINTING_MS),
+    utterance_end_ms: String(DEEPGRAM_UTTERANCE_END_MS),
     filler_words: 'false',
     numerals: 'false',
   })
@@ -49,12 +52,15 @@ export function buildAuthProtocols(accessToken: string): string[] {
   return ['bearer', accessToken]
 }
 
-export class DeepgramSpeechSession {
-  private handlers: SpeechHandlers
+export class DeepgramSpeechSession implements STTProvider {
+  readonly id = 'deepgram'
+  readonly name = 'Deepgram Nova-3'
+  readonly model = DEEPGRAM_MODEL
+
+  private handlers: ProviderHandlers
   private wantLive = false
   private state: SpeechConnectionState = 'idle'
   private socket: WebSocket | null = null
-  private mic: MicCapture | null = null
   private assembler: TranscriptAssembler | null = null
   private keepAliveTimer: number | null = null
   private reconnectTimer: number | null = null
@@ -62,7 +68,7 @@ export class DeepgramSpeechSession {
   private sessionId = 0
   private opening = false
 
-  constructor(handlers: SpeechHandlers) {
+  constructor(handlers: ProviderHandlers) {
     this.handlers = handlers
   }
 
@@ -70,10 +76,43 @@ export class DeepgramSpeechSession {
     return this.state
   }
 
-  async start() {
+  getConfig(): Record<string, unknown> {
+    return {
+      provider: this.id,
+      model: this.model,
+      encoding: 'linear16',
+      sampleRate: TARGET_SAMPLE_RATE,
+      language: 'en-US',
+      endpointingMs: DEEPGRAM_ENDPOINTING_MS,
+      utteranceEndMs: DEEPGRAM_UTTERANCE_END_MS,
+      interimResults: true,
+    }
+  }
+
+  async connect(): Promise<void> {
     this.wantLive = true
     this.reconnectAttempts = 0
     await this.openSession()
+  }
+
+  /** @deprecated use connect() — kept so existing call sites stay obvious */
+  async start() {
+    await this.connect()
+  }
+
+  sendAudio(chunk: ArrayBuffer): void {
+    if (!this.wantLive || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      return
+    }
+    try {
+      this.socket.send(chunk)
+    } catch {
+      // reconnect path handles close
+    }
+  }
+
+  async close(): Promise<void> {
+    this.stop()
   }
 
   stop() {
@@ -89,31 +128,34 @@ export class DeepgramSpeechSession {
     this.handlers.onStateChange?.(state)
   }
 
+  private emit(text: string, isFinal: boolean) {
+    this.handlers.onEvent({
+      provider: this.id,
+      model: this.model,
+      text,
+      isFinal,
+      receivedAt: performance.now(),
+    })
+  }
+
   private async openSession() {
     if (!this.wantLive || this.opening) return
     this.opening = true
 
     const id = ++this.sessionId
     this.setState(this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting')
-    this.teardownSocketAndMicOnly()
+    this.teardownSocketOnly()
 
     try {
-      // Pre-warm mic BEFORE the socket so we can send audio immediately on open
-      // (Deepgram closes connections that stay silent ~10s).
-      const [token, mic] = await Promise.all([
-        fetchDeepgramToken(),
-        createMicCapture(),
-      ])
+      const token = await fetchDeepgramToken()
 
       if (!this.wantLive || id !== this.sessionId) {
-        mic.stop()
         return
       }
 
-      this.mic = mic
       this.assembler = new TranscriptAssembler({
-        onLive: (hypothesis) => this.handlers.onLive?.(hypothesis),
-        onFinal: (transcript) => this.handlers.onFinal?.(transcript),
+        onLive: (hypothesis) => this.emit(hypothesis, false),
+        onFinal: (transcript) => this.emit(transcript, true),
       })
 
       const url = buildDeepgramListenUrl()
@@ -130,23 +172,6 @@ export class DeepgramSpeechSession {
           }
           return
         }
-
-        // Send audio in the same turn as open — no await gap.
-        this.mic?.start((chunk) => {
-          if (
-            !this.wantLive ||
-            id !== this.sessionId ||
-            !this.socket ||
-            this.socket.readyState !== WebSocket.OPEN
-          ) {
-            return
-          }
-          try {
-            this.socket.send(chunk)
-          } catch {
-            // ignore send failures; reconnect path handles close
-          }
-        })
 
         this.startKeepAlive()
         this.reconnectAttempts = 0
@@ -173,7 +198,6 @@ export class DeepgramSpeechSession {
           return
         }
 
-        // 1000 = normal close after CloseStream
         if (event.code === 1000 && !this.wantLive) {
           this.setState('idle')
           return
@@ -197,7 +221,6 @@ export class DeepgramSpeechSession {
     try {
       const parsed: unknown = JSON.parse(data)
 
-      // Surface Deepgram error payloads instead of silently ignoring.
       if (
         parsed &&
         typeof parsed === 'object' &&
@@ -251,15 +274,11 @@ export class DeepgramSpeechSession {
 
     this.clearReconnectTimer()
     const attempt = this.reconnectAttempts
-    const delay = Math.min(
-      RECONNECT_MAX_MS,
-      RECONNECT_BASE_MS * 2 ** attempt,
-    )
+    const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** attempt)
     this.reconnectAttempts += 1
     this.setState('reconnecting')
 
-    // Fresh session — never reuse a broken socket (Deepgram guidance).
-    this.teardownSocketAndMicOnly()
+    this.teardownSocketOnly()
     this.assembler?.reset()
 
     this.reconnectTimer = window.setTimeout(() => {
@@ -274,13 +293,8 @@ export class DeepgramSpeechSession {
     }
   }
 
-  private teardownSocketAndMicOnly() {
+  private teardownSocketOnly() {
     this.clearKeepAlive()
-
-    if (this.mic) {
-      this.mic.stop()
-      this.mic = null
-    }
 
     if (this.socket) {
       const socket = this.socket
@@ -311,7 +325,7 @@ export class DeepgramSpeechSession {
 
   private teardownSession(next: SpeechConnectionState) {
     this.clearReconnectTimer()
-    this.teardownSocketAndMicOnly()
+    this.teardownSocketOnly()
     this.assembler?.reset()
     this.assembler = null
     this.setState(next)

@@ -1,21 +1,36 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Leaderboard, ResultsScreen, TestScreen } from './components'
+import {
+  Leaderboard,
+  ModelBoard,
+  RegisterModal,
+  ResultsScreen,
+  TestScreen,
+} from './components'
 import {
   GameEngine,
   buildWordList,
   createWordState,
+  pickLivePrimary,
+  pickRoundJudge,
   pickTongueTwisterText,
+  statsFromJudge,
   tokenizeWords,
 } from './core'
+import type { AccountFields } from './core/account'
+import { readSavedAccount, writeSavedAccount } from './data/accountStorage'
 import {
-  getLeaderboard,
-  tryRankScore,
+  fetchLeaderboard,
+  markYou,
+  modeLabel,
   type LeaderboardEntry,
 } from './data/leaderboard'
+import { submitRun, type SubmitRunInput } from './data/submitRun'
 import {
   isSpeechRecognitionSupported,
+  parseEnabledProviders,
   useSpeechRecognition,
 } from './speech'
+import type { ModelResult } from './speech'
 import type {
   GamePhase,
   PhraseAttempt,
@@ -80,6 +95,11 @@ function App() {
   const micReadyRef = useRef(false)
   const abortRef = useRef<() => void>(() => {})
   const timerStartedRef = useRef(false)
+  const finishBenchmarkRef = useRef<
+    (input: { referenceWords: string[]; elapsedMs: number }) => ModelResult[]
+  >(() => [])
+  const pendingRunRef = useRef<SubmitRunInput | null>(null)
+  const persistedRef = useRef(false)
 
   const [phase, setPhase] = useState<GamePhase>('idle')
   const [mode, setMode] = useState<TestMode>('time')
@@ -100,14 +120,67 @@ function App() {
   const [startError, setStartError] = useState<string | null>(null)
   const [supported] = useState(() => isSpeechRecognitionSupported())
   const [leaderboardOpen, setLeaderboardOpen] = useState(false)
-  const [board, setBoard] = useState<LeaderboardEntry[]>(() => getLeaderboard())
+  const [board, setBoard] = useState<LeaderboardEntry[]>([])
+  const [boardError, setBoardError] = useState<string | null>(null)
   const [lastRank, setLastRank] = useState<number | null>(null)
   const [heardLog, setHeardLog] = useState<string[]>([])
+  const [modelResults, setModelResults] = useState<ModelResult[]>([])
+  const [judgeName, setJudgeName] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [modelsOpen, setModelsOpen] = useState(false)
+  const [registerOpen, setRegisterOpen] = useState(false)
+  const [registerError, setRegisterError] = useState<string | null>(null)
+  const [registerSubmitting, setRegisterSubmitting] = useState(false)
+  const [savedAccount, setSavedAccount] = useState<AccountFields | null>(() =>
+    readSavedAccount(),
+  )
+  const [youName, setYouName] = useState<string | null>(
+    () => readSavedAccount()?.username ?? null,
+  )
+  const [livePrimaryId, setLivePrimaryId] = useState(() =>
+    pickLivePrimary(parseEnabledProviders(), []),
+  )
+  const roundWallStartedRef = useRef(0)
 
   const activeDuration = resolveDuration(
     isCustomDuration,
     customDuration,
     durationSec,
+  )
+
+  const refreshBoard = useCallback(async (username?: string | null) => {
+    const you = username ?? youName ?? readSavedAccount()?.username
+    const result = await fetchLeaderboard()
+    setBoardError(result.error ?? null)
+    setBoard(markYou(result.entries, you))
+  }, [youName])
+
+  const persistPendingRun = useCallback(
+    async (account?: AccountFields): Promise<boolean> => {
+      const pending = pendingRunRef.current
+      if (!pending || persistedRef.current) return true
+      persistedRef.current = true
+      const saved = await submitRun({ ...pending, account })
+      if ('error' in saved) {
+        persistedRef.current = false
+        setSaveError(saved.error)
+        setRegisterError(saved.error)
+        return false
+      }
+      setSaveError(null)
+      setRegisterError(null)
+      if (saved.rank != null) setLastRank(saved.rank)
+      if (account) {
+        writeSavedAccount(account)
+        setSavedAccount(account)
+      }
+      if (saved.username) {
+        setYouName(saved.username)
+        await refreshBoard(saved.username)
+      }
+      return true
+    },
+    [refreshBoard],
   )
 
   const syncFromEngine = useCallback(() => {
@@ -131,6 +204,13 @@ function App() {
   }, [])
 
   const goHome = useCallback(() => {
+    if (
+      phaseRef.current === 'finished' &&
+      !persistedRef.current &&
+      pendingRunRef.current
+    ) {
+      void persistPendingRun()
+    }
     clearTimers()
     abortRef.current()
     engineRef.current.reset()
@@ -138,31 +218,67 @@ function App() {
     setPhase('idle')
     setStartError(null)
     setLeaderboardOpen(false)
+    setRegisterOpen(false)
+    setRegisterError(null)
     setHeardLog([])
+    setModelResults([])
+    setJudgeName(null)
+    setSaveError(null)
+    setModelsOpen(false)
     setWords(previewWords(mode, customPhrase))
     setWordIndex(0)
     setAttempts([])
     setStats(emptyStats)
     setTimeLeftSec(activeDuration)
     setElapsedSec(0)
-  }, [activeDuration, clearTimers, customPhrase, mode])
+  }, [activeDuration, clearTimers, customPhrase, mode, persistPendingRun])
 
   const finishRound = useCallback(() => {
+    const playing = engineRef.current.getState()
+    const referenceWords = playing.words.map((word) => word.expected)
+    const elapsedMs =
+      mode === 'time' && activeDuration > 0
+        ? activeDuration * 1000
+        : playing.startedAt
+          ? performance.now() - playing.startedAt
+          : 0
+    const harvested = finishBenchmarkRef.current({
+      referenceWords,
+      elapsedMs,
+    })
+    setModelResults(harvested)
+
     clearTimers()
     const finished = engineRef.current.finishRound()
-    const finalStats = engineRef.current.getStats()
+    const engineStats = engineRef.current.getStats()
+    const judge = pickRoundJudge(harvested)
+    const finalStats = judge ? statsFromJudge(engineStats, judge) : engineStats
     syncFromEngine()
     setStats(finalStats)
+    setJudgeName(judge?.name ?? null)
 
     const elapsedForRank = Math.max(1, Math.round(finished.elapsedMs / 1000))
-    const result = tryRankScore(
-      finalStats.netWpm,
-      finalStats.accuracy,
-      mode,
-      mode === 'time' ? activeDuration : elapsedForRank,
-    )
-    setBoard(result.board)
-    setLastRank(result.rank)
+    const durationForRun = mode === 'time' ? activeDuration : elapsedForRank
+
+    pendingRunRef.current =
+      harvested.length > 0
+        ? {
+            startedAt: roundWallStartedRef.current || Date.now(),
+            testType: mode === 'custom' ? 'stress' : 'standard',
+            durationSec: durationForRun,
+            referenceWords,
+            promptSetId:
+              mode === 'custom' ? 'tongue-twisters-v1' : 'english-400-stream-220',
+            outcome: 'completed',
+            stats: finalStats,
+            models: harvested,
+            judgeProvider: judge?.provider,
+            modeLabel: modeLabel(mode, durationForRun),
+          }
+        : null
+    persistedRef.current = false
+    setRegisterError(null)
+    setRegisterOpen(harvested.length > 0)
 
     phaseRef.current = 'finished'
     setPhase('finished')
@@ -208,15 +324,45 @@ function App() {
     connectionState,
     requestPermission,
     abort,
+    finishBenchmark,
+    enabledProviders,
+    liveProviders,
   } = useSpeechRecognition({
     onFinalTranscript: handleFinalTranscript,
     onLiveHypothesis: handleLiveHypothesis,
     enabled: phase === 'playing',
+    primaryId: livePrimaryId,
   })
 
   useEffect(() => {
     abortRef.current = abort
   }, [abort])
+
+  useEffect(() => {
+    finishBenchmarkRef.current = finishBenchmark
+  }, [finishBenchmark])
+
+  useEffect(() => {
+    if (phase !== 'idle') return
+    let cancelled = false
+    void fetch('/api/models/summary', { headers: { Accept: 'application/json' } })
+      .then(async (response) => {
+        const body = (await response.json()) as {
+          models?: Parameters<typeof pickLivePrimary>[1]
+        }
+        if (cancelled) return
+        setLivePrimaryId(
+          pickLivePrimary(parseEnabledProviders(), body.models ?? []),
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setLivePrimaryId(pickLivePrimary(parseEnabledProviders(), []))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [phase])
 
   useEffect(() => {
     if (
@@ -257,6 +403,7 @@ function App() {
     setStartError(null)
     setSpeechError(null)
     setLeaderboardOpen(false)
+    setRegisterOpen(false)
 
     try {
       if (!micReadyRef.current) {
@@ -290,9 +437,14 @@ function App() {
       setElapsedSec(0)
       setLastRank(null)
       setHeardLog([])
-      // Timer itself starts once Deepgram is actually live — see the
-      // `connectionState` effect below — so connection lag doesn't burn
-      // into the round duration.
+      setModelResults([])
+      setJudgeName(null)
+      setSaveError(null)
+      pendingRunRef.current = null
+      persistedRef.current = false
+      roundWallStartedRef.current = Date.now()
+      // Timer starts once the locked primary model is live so connection
+      // lag does not burn into the round duration.
     } finally {
       startingRef.current = false
     }
@@ -315,6 +467,28 @@ function App() {
     }
   }, [activeDuration, phase, prepareIdle])
 
+  const openLeaderboard = useCallback(() => {
+    setLeaderboardOpen(true)
+    void refreshBoard(youName)
+  }, [refreshBoard, youName])
+
+  const handleRegister = useCallback(
+    async (account: AccountFields) => {
+      setRegisterSubmitting(true)
+      const ok = await persistPendingRun(account)
+      setRegisterSubmitting(false)
+      if (ok) setRegisterOpen(false)
+    },
+    [persistPendingRun],
+  )
+
+  const handleSkipRegister = useCallback(async () => {
+    setRegisterSubmitting(true)
+    await persistPendingRun()
+    setRegisterSubmitting(false)
+    setRegisterOpen(false)
+  }, [persistPendingRun])
+
   useEffect(() => {
     if (phase === 'idle') {
       prepareIdle(mode, activeDuration, customPhrase)
@@ -323,18 +497,29 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && leaderboardOpen) {
-        event.preventDefault()
-        setLeaderboardOpen(false)
-        return
-      }
-
       const target = event.target as HTMLElement | null
       const typingInField =
         !!target &&
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable)
+
+      if (registerOpen) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          void handleSkipRegister()
+        }
+        if (event.key === 'Tab' && !typingInField) {
+          event.preventDefault()
+        }
+        return
+      }
+
+      if (event.key === 'Escape' && leaderboardOpen) {
+        event.preventDefault()
+        setLeaderboardOpen(false)
+        return
+      }
 
       if (event.key === 'Tab') {
         if (typingInField) return
@@ -350,7 +535,7 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [goHome, leaderboardOpen, startRound])
+  }, [goHome, handleSkipRegister, leaderboardOpen, registerOpen, startRound])
 
   useEffect(() => {
     return () => {
@@ -377,15 +562,15 @@ function App() {
             <button type="button" className="nav-btn" onClick={goHome}>
               home
             </button>
+            <button type="button" className="nav-btn" onClick={openLeaderboard}>
+              board
+            </button>
             <button
               type="button"
               className="nav-btn"
-              onClick={() => {
-                setBoard(getLeaderboard())
-                setLeaderboardOpen(true)
-              }}
+              onClick={() => setModelsOpen(true)}
             >
-              board
+              models
             </button>
           </nav>
         </div>
@@ -399,11 +584,12 @@ function App() {
             durationSec={mode === 'time' ? activeDuration : elapsedSec}
             mode={mode}
             rank={lastRank}
+            judgeName={judgeName}
+            modelResults={modelResults}
+            saveError={saveError}
             onPlayAgain={goHome}
-            onOpenLeaderboard={() => {
-              setBoard(getLeaderboard())
-              setLeaderboardOpen(true)
-            }}
+            onOpenLeaderboard={openLeaderboard}
+            onOpenModels={() => setModelsOpen(true)}
           />
         ) : (
           <TestScreen
@@ -424,6 +610,8 @@ function App() {
             error={startError ?? speechError}
             heardLog={heardLog}
             liveHypothesis={liveHypothesis}
+            liveProviderCount={liveProviders.length}
+            enabledProviderCount={enabledProviders.length}
             onModeChange={(next) => {
               setMode(next)
               if (next === 'custom' && !customPhrase.trim()) {
@@ -448,8 +636,18 @@ function App() {
         open={leaderboardOpen}
         board={board}
         highlightRank={lastRank}
+        error={boardError}
         onClose={() => setLeaderboardOpen(false)}
       />
+      <RegisterModal
+        open={registerOpen}
+        initial={savedAccount}
+        error={registerError}
+        submitting={registerSubmitting}
+        onSubmit={(account) => void handleRegister(account)}
+        onSkip={() => void handleSkipRegister()}
+      />
+      <ModelBoard open={modelsOpen} onClose={() => setModelsOpen(false)} />
     </div>
   )
 }

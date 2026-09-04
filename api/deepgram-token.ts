@@ -1,9 +1,8 @@
 /// <reference types="node" />
 /**
- * Vercel serverless function equivalent of server/deepgramTokenPlugin.ts
- * (that plugin only runs under the Vite dev/preview server, not in a
- * static production build). Mints a short-lived Deepgram JWT so the
- * browser never sees the long-lived DEEPGRAM_API_KEY.
+ * Vercel serverless function (mirrored locally by server/devApiPlugin.ts).
+ * Mints a short-lived Deepgram JWT so the browser never sees the
+ * long-lived DEEPGRAM_API_KEY.
  *
  * GET/POST /api/deepgram-token → { access_token, expires_in }
  */

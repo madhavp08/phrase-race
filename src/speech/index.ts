@@ -1,4 +1,7 @@
-export { useSpeechRecognition, isSpeechRecognitionSupported } from './useSpeechRecognition'
+export {
+  useSpeechRecognition,
+  isSpeechRecognitionSupported,
+} from './useSpeechRecognition'
 export { requestMicrophonePermission, isMicrophoneSupported } from './mic'
 export {
   DeepgramSpeechSession,
@@ -6,4 +9,14 @@ export {
   buildAuthProtocols,
 } from './deepgramClient'
 export { TranscriptAssembler } from './transcriptAssembler'
-export type { SpeechConnectionState, SpeechHandlers } from './types'
+export { BenchmarkSession } from './benchmarkSession'
+export { parseEnabledProviders } from './constants'
+export type {
+  SpeechConnectionState,
+  SpeechHandlers,
+  STTProvider,
+  TranscriptEvent,
+  ModelResult,
+  WordResult,
+  ModelResultStatus,
+} from './types'

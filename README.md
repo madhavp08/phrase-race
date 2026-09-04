@@ -1,116 +1,152 @@
 # PhraseRace
 
-Monkeytype for speech-to-text — powered by **Deepgram Nova-3** live streaming.
+A 16 kHz speech-to-text benchmark that still plays like Monkeytype.
 
-Speak continuously through a word stream. A live agent paints letter mistakes from interim transcripts; finals commit words for scoring.
+You read a word stream aloud. PhraseRace captures **one** canonical 16 kHz linear16 PCM stream, fans those identical bytes to three STT models, and scores each model independently.
+
+The live caret follows the current top model (highest average model WPM on the PhraseRace board). If the board is empty, it uses a dated public-ranking fallback (OpenAI, then Deepgram, then ElevenLabs) — not a hardcoded Deepgram judge. After each round, **your test** WPM/accuracy come from whichever model posted the highest WPM on that audio.
+
+PhraseRace measures **recognition**, not pronunciation. If you said the prompt correctly and a model wrote something else, that is a model error.
+
+## What is measured
+
+Two scoreboards stay separate:
+
+- **Your test** — speaking speed and accuracy according to the round judge (highest WPM that round). Feeds the user leaderboard (registered username, or `guest #N` if you skip).
+- **Model results** — character accuracy, CER, WER, model-adjusted WPM, and per-word / median latency on the same audio.
+
+Latency is **end-to-end UX latency**: time from the last sent PCM chunk to the transcript event arriving in the browser. It is not isolated model inference time. The ~85 ms figure is the ScriptProcessor **audio chunk size** at 48 kHz (`4096 / 48000`), not recognition latency.
+
+OpenAI Realtime expects 24 kHz PCM. PhraseRace upsamples the 16 kHz canonical stream with nearest-neighbor copies so OpenAI does not receive extra acoustic information.
+
+## Models
+
+| Provider | Model | Role |
+| --- | --- | --- |
+| OpenAI | `gpt-live-transcribe` | Live or shadow (24 kHz upsample) |
+| Deepgram | `nova-3` | Live or shadow |
+| ElevenLabs | `scribe_v2_realtime` | Live or shadow |
+
+Which one drives the caret is chosen at round start from `/api/models/summary`. Set `VITE_BENCH_PROVIDERS=deepgram` to develop without burning the other two APIs.
 
 ## Stack
 
 - Vite + React 19 + TypeScript
-- Deepgram Nova-3 WebSocket streaming (`/v1/listen`)
-- Short-lived JWT auth via local `/api/deepgram-token` (API key stays server-side)
-- Outfit + IBM Plex Mono UI (speech-lab look, mobile-first)
-- Vitest
+- Web Audio `ScriptProcessor` → 16 kHz linear16 PCM (not MediaRecorder / WebM)
+- Short-lived tokens: Deepgram JWT (45s), OpenAI `client_secrets`, ElevenLabs `realtime_scribe`
+- Neon Postgres for runs, accounts, and the live leaderboard (`POST /api/runs`, `GET /api/models/summary`, `GET /api/leaderboard`)
+- Vitest + `@vitest/coverage-v8` for `src/core` and `src/speech`
 
-## Setup
+Postgres is the right store here: unique email/username constraints, joins from runs → model results → word timings, and a ranked leaderboard. Neon is serverless Postgres that matches the Vercel deploy.
 
-### 1. Deepgram API key
+## Setup (what you need to do)
 
-1. Create a free key at [console.deepgram.com](https://console.deepgram.com/).
-2. Copy env and paste your key (no `VITE_` prefix — server-only):
+Do **not** put secrets in the git branch. `.env` is gitignored. Only `.env.example` is committed (placeholders). Fill a local `.env` on your machine, and set the same keys in the Vercel project.
 
-```bash
-cp .env.example .env
-# edit .env → DEEPGRAM_API_KEY=your_real_key_here
-```
+1. **Pull this branch**
 
-3. Install and run:
+   ```bash
+   git fetch origin
+   git checkout multi-model-stt-benchmark
+   git pull
+   ```
 
-```bash
-npm install
-npm run dev
-```
+2. **Local `.env`** (your laptop, never committed)
 
-4. Open the app, allow the microphone, press **tab** to start.
+   ```bash
+   cp .env.example .env
+   ```
 
-> The long-lived key is only used server-side to call  
-> `POST https://api.deepgram.com/v1/auth/grant`. The browser receives a ~45s JWT.
+   | Variable | Where to get it | Used by |
+   | --- | --- | --- |
+   | `DEEPGRAM_API_KEY` | Deepgram console. Needs **Member** (or equivalent) so `/auth/grant` can mint JWTs — a usage-only key will fail. | `POST /api/deepgram-token` |
+   | `OPENAI_API_KEY` | OpenAI dashboard, realtime / transcription access. | `POST /api/openai-realtime-token` |
+   | `ELEVENLABS_API_KEY` | ElevenLabs dashboard, Scribe realtime. | `POST /api/elevenlabs-token` |
+   | `DATABASE_URL` | Neon pooled connection string (see Vercel steps below). | `/api/runs`, `/api/models/summary`, `/api/leaderboard` |
 
-**Local troubleshooting**
+   Optional: `VITE_BENCH_PROVIDERS=deepgram` while you only have one key.
 
-- If you see **“DEEPGRAM_API_KEY is not set”**, restart `npm run dev` after editing `.env`. The placeholder `your_deepgram_api_key_here` is rejected on purpose.
-- If you see **“Insufficient permissions.”**, your key can call speech APIs but **cannot mint temporary JWTs**. `/auth/grant` requires a key with at least **Member** role:
-  1. Open [Deepgram Console → API Keys](https://console.deepgram.com/)
-  2. **Create a new key** → open **Advanced** options
-  3. Set permissions to **Member** (not a restricted “Member”/usage-only key with fewer scopes)
-  4. Paste the new key into `.env` and **restart** `npm run dev`
+3. **Find the Neon connection string (you already created the database in Vercel)**
 
-### 2. Deploy to Vercel (GitHub)
+   Easiest path, since the store was created through Vercel:
 
-The repo is set up for [Vercel](https://vercel.com) + GitHub:
+   1. [Vercel Dashboard](https://vercel.com/dashboard) → your **phrase-race** project.
+   2. **Storage** → click the Neon database.
+   3. Copy **`.env.local`** or the **`DATABASE_URL`** connection string (the pooled one is fine; it often has `-pooler` in the host).
+   4. Paste it into your local `.env` as `DATABASE_URL=...`.
 
-| Piece | Role |
-| --- | --- |
-| `api/deepgram-token.ts` | Production token endpoint (serverless) |
-| `server/deepgramTokenPlugin.ts` | Same logic in local `npm run dev` |
-| `vercel.json` | Vite build + SPA fallback routing |
+   Alternative: **Settings → Environment Variables**. If you used **Connect Project** when creating the store, Vercel already injected `DATABASE_URL`. Reveal it there and copy it locally.
 
-**Steps:**
+   Alternative: [Neon Console](https://console.neon.tech) (org named like `Vercel: …`) → project → **Connect** → copy the connection string.
 
-1. Push this repo to GitHub (`madhavp08/phrase-race`).
-2. In [Vercel → New Project](https://vercel.com/new), import the GitHub repo.
-3. Under **Environment Variables**, add:
-   - Name: `DEEPGRAM_API_KEY`
-   - Value: your Deepgram API key
-   - Environments: Production (and Preview if you want PR deploys)
-4. Deploy. Vercel runs `npm run build` and serves `dist/`; `/api/deepgram-token` runs as a serverless function.
-5. On each push to `main`, Vercel redeploys automatically.
+   Schema (users, accounts, test_runs, model_results, word_results, leaderboard_scores) is applied automatically on the first API hit. You do not run SQL by hand.
 
-**Production check:** Open your site → DevTools → Network → start a round → confirm `POST /api/deepgram-token` returns `{ access_token, expires_in }`.
+4. **What to do in Vercel** (so production/preview actually work)
+
+   1. Import this GitHub repo if the project is not connected yet (**Add New… → Project** → `madhavp08/phrase-race`). Set the Production branch to `main` (or this PR branch if you want to preview it before merge).
+   2. **Storage → your Neon database → Connect Project** → select this Vercel project and check **Production** and **Preview** (and **Development** if you use `vercel env pull`). That injects `DATABASE_URL` into Vercel. You should not need to paste the string again on Vercel if Connect Project already did it.
+   3. **Settings → Environment Variables** — confirm `DATABASE_URL` is present, then **add** (Production + Preview):
+      - `DEEPGRAM_API_KEY`
+      - `OPENAI_API_KEY`
+      - `ELEVENLABS_API_KEY`
+      Never prefix these with `VITE_`.
+   4. **Redeploy** (**Deployments → … → Redeploy**) so the new env vars are picked up. Env changes do not apply to an already-running deployment.
+   5. After deploy, open the live URL, press Tab, finish a test. Skip should show `guest #0` on **board**.
+
+5. **Install and run locally**
+
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+   Restart `npm run dev` after any `.env` change. Allow the microphone. **Tab** starts a round.
+
+6. **Play a round.** After the test, register a unique username + email, or skip to post as `guest #0` / `guest #1` / …. The public board shows that name only. The same email cannot register a second username; a taken username is rejected. Skip reuses the same guest name on the same browser.
+
+## Deploy
+
+`api/*.ts` become serverless functions; `vercel.json` serves the Vite SPA for everything except `/api/*`. Local `npm run dev` mounts the same routes via `server/devApiPlugin.ts`.
 
 ## Speech architecture
 
 ```
-mic (MediaRecorder webm/opus)
+mic (ScriptProcessor 4096 @ device rate)
         ↓
-DeepgramSpeechSession  ←→  wss://api.deepgram.com/v1/listen
+downsample / convert → 16 kHz linear16 PCM
         ↓
-TranscriptAssembler (interim / is_final / UtteranceEnd)
-        ↓
-useSpeechRecognition → App → GameEngine.applyLive / applyFinal
+        ├── Deepgram Nova-3  (binary WS, 45s JWT)
+        ├── OpenAI gpt-live-transcribe (JSON PCM @ 24 kHz)
+        └── ElevenLabs Scribe v2 (JSON PCM @ 16 kHz)
+                ↓
+        normalized TranscriptEvent
+                ↓
+        ├── locked primary → GameEngine.applyLive / applyFinal
+        └── shadow evaluators → CER / WER / latency
+                ↓
+        POST /api/runs  (optional username/email → leaderboard)
 ```
 
-| Module | Role |
-| --- | --- |
-| `server/deepgramTokenPlugin.ts` | Mints temp JWTs |
-| `src/speech/mic.ts` | `getUserMedia` + chunked capture |
-| `src/speech/deepgramClient.ts` | WebSocket lifecycle, keepalive, reconnect |
-| `src/speech/transcriptAssembler.ts` | Interim vs final / UtteranceEnd |
-| `src/speech/useSpeechRecognition.ts` | React hook (same API as before) |
+Deepgram listen params (code is source of truth):
 
-### Deepgram query params
+- `encoding=linear16`, `sample_rate=16000`, `channels=1`
+- `interim_results=true`, `smart_format=true`
+- `endpointing=100`, `utterance_end_ms=1000`
+- Auth: subprotocols `['bearer', jwt]` (RFC 6455 forbids spaces in one token)
 
-- `model=nova-3`
-- `encoding=linear16` + `sample_rate=16000` + `channels=1`
-- `interim_results=true`
-- `smart_format=true` (no separate `punctuate`)
-- `endpointing=300`
-- `utterance_end_ms=1000`
-- `language=en-US`
-
-Auth over the browser WebSocket uses subprotocols `['bearer', jwt]`  
-(RFC 6455 forbids spaces, so `"Bearer ${jwt}"` as one string is invalid).
+Prompts: shuffled 220-word streams from a 400-word frequency list, plus 20 tongue-twister stress phrases.
 
 ## Gameplay shortcuts
 
 - **tab** (idle) → start
 - **tab** (playing / results) → home
-- **♛** → leaderboard
+- **board** → live username leaderboard (empty until someone registers)
+- **models** → aggregate model comparison (from saved runs)
 
 ## Scripts
 
 ```bash
-npm run dev
 npm run test
+npm run test:coverage
 npm run build
 ```

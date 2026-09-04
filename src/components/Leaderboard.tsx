@@ -4,6 +4,7 @@ interface LeaderboardProps {
   open: boolean
   board: LeaderboardEntry[]
   highlightRank?: number | null
+  error?: string | null
   onClose: () => void
 }
 
@@ -11,6 +12,7 @@ export function Leaderboard({
   open,
   board,
   highlightRank,
+  error,
   onClose,
 }: LeaderboardProps) {
   if (!open) return null
@@ -25,7 +27,7 @@ export function Leaderboard({
       >
         <header className="lb-header">
           <div>
-            <p className="lb-kicker">this device</p>
+            <p className="lb-kicker">live</p>
             <h2>leaderboard</h2>
           </div>
           <button type="button" className="lb-close" onClick={onClose}>
@@ -33,42 +35,52 @@ export function Leaderboard({
           </button>
         </header>
 
-        <div className="lb-cols" aria-hidden="true">
-          <span>#</span>
-          <span>name</span>
-          <span>mode</span>
-          <span>wpm</span>
-          <span>acc</span>
-        </div>
+        {error && <p className="error-line">{error}</p>}
 
-        <ol className="lb-list">
-          {board.map((entry, index) => {
-            const rank = index + 1
-            return (
-              <li
-                key={`${entry.id}-${rank}`}
-                className={[
-                  entry.isYou ? 'you' : '',
-                  highlightRank === rank ? 'flash' : '',
-                  rank <= 3 ? `top-${rank}` : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <span className="lb-rank">{rank}</span>
-                <span className="lb-name">
-                  {entry.name}
-                  {entry.isYou ? <em>you</em> : null}
-                </span>
-                <span className="lb-mode">{entry.modeLabel}</span>
-                <span className="lb-wpm">{entry.wpm}</span>
-                <span className="lb-acc">{entry.accuracy}%</span>
-              </li>
-            )
-          })}
-        </ol>
+        {!error && board.length === 0 && (
+          <p className="muted">No scores yet. Finish a test to claim a username.</p>
+        )}
 
-        <p className="lb-foot">demo board · scores saved on this device</p>
+        {board.length > 0 && (
+          <>
+            <div className="lb-cols" aria-hidden="true">
+              <span>#</span>
+              <span>name</span>
+              <span>mode</span>
+              <span>wpm</span>
+              <span>acc</span>
+            </div>
+
+            <ol className="lb-list">
+              {board.map((entry, index) => {
+                const rank = index + 1
+                return (
+                  <li
+                    key={`${entry.id}-${rank}`}
+                    className={[
+                      entry.isYou ? 'you' : '',
+                      highlightRank === rank ? 'flash' : '',
+                      rank <= 3 ? `top-${rank}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    <span className="lb-rank">{rank}</span>
+                    <span className="lb-name">
+                      {entry.username}
+                      {entry.isYou ? <em>you</em> : null}
+                    </span>
+                    <span className="lb-mode">{entry.modeLabel}</span>
+                    <span className="lb-wpm">{entry.wpm}</span>
+                    <span className="lb-acc">{entry.accuracy}%</span>
+                  </li>
+                )
+              })}
+            </ol>
+          </>
+        )}
+
+        <p className="lb-foot">usernames only · skip posts as guest #0, guest #1, …</p>
       </div>
     </div>
   )

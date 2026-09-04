@@ -1,22 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { DeepgramSpeechSession } from './deepgramClient'
+import { parseEnabledProviders } from './constants'
+import { BenchmarkSession } from './benchmarkSession'
 import { isMicrophoneSupported, requestMicrophonePermission } from './mic'
-import type { SpeechConnectionState } from './types'
+import type { FinishBenchmarkInput } from './benchmarkSession'
+import type { ModelResult, SpeechConnectionState } from './types'
 
 interface UseSpeechRecognitionOptions {
   onFinalTranscript: (transcript: string) => void
   onLiveHypothesis?: (hypothesis: string) => void
   enabled: boolean
+  /** Live caret stream. Frozen at session start via a ref. */
+  primaryId?: string
 }
 
 /**
- * React facade over Deepgram Nova-3 streaming.
- * Keeps the same consumer API the game already uses.
+ * React facade over the multi-model benchmark session.
+ * Gameplay consumes only the locked primary live/final stream.
  */
 export function useSpeechRecognition({
   onFinalTranscript,
   onLiveHypothesis,
   enabled,
+  primaryId,
 }: UseSpeechRecognitionOptions) {
   const [listening, setListening] = useState(false)
   const [liveHypothesis, setLiveHypothesis] = useState('')
@@ -24,11 +29,16 @@ export function useSpeechRecognition({
   const [connectionState, setConnectionState] =
     useState<SpeechConnectionState>('idle')
   const [supported] = useState(() => isMicrophoneSupported())
+  const [enabledProviders, setEnabledProviders] = useState<string[]>(() =>
+    parseEnabledProviders(),
+  )
+  const [liveProviders, setLiveProviders] = useState<string[]>([])
 
-  const sessionRef = useRef<DeepgramSpeechSession | null>(null)
+  const sessionRef = useRef<BenchmarkSession | null>(null)
   const onFinalRef = useRef(onFinalTranscript)
   const onLiveRef = useRef(onLiveHypothesis)
   const enabledRef = useRef(enabled)
+  const primaryIdRef = useRef(primaryId)
 
   useEffect(() => {
     onFinalRef.current = onFinalTranscript
@@ -42,12 +52,17 @@ export function useSpeechRecognition({
     enabledRef.current = enabled
   }, [enabled])
 
+  useEffect(() => {
+    primaryIdRef.current = primaryId
+  }, [primaryId])
+
   const abort = useCallback(() => {
-    sessionRef.current?.stop()
+    void sessionRef.current?.close()
     sessionRef.current = null
     setListening(false)
     setLiveHypothesis('')
     setConnectionState('idle')
+    setLiveProviders([])
   }, [])
 
   const start = useCallback(() => {
@@ -56,16 +71,16 @@ export function useSpeechRecognition({
       return
     }
 
-    // Prevent duplicate sessions from StrictMode / rapid toggles.
     if (sessionRef.current) {
-      sessionRef.current.stop()
+      void sessionRef.current.close()
       sessionRef.current = null
     }
 
     setError(null)
     setLiveHypothesis('')
 
-    const session = new DeepgramSpeechSession({
+    const session = new BenchmarkSession({
+      primaryId: primaryIdRef.current,
       onLive: (hypothesis) => {
         if (!enabledRef.current) return
         setLiveHypothesis(hypothesis)
@@ -85,12 +100,25 @@ export function useSpeechRecognition({
             state === 'connecting' ||
             state === 'reconnecting',
         )
+        setLiveProviders(session.liveIds())
       },
     })
 
     sessionRef.current = session
-    void session.start()
+    setEnabledProviders(parseEnabledProviders())
+    void session.start().then(() => {
+      setEnabledProviders(session.enabledIds())
+      setLiveProviders(session.liveIds())
+    })
   }, [supported])
+
+  const finishBenchmark = useCallback((input: FinishBenchmarkInput): ModelResult[] => {
+    const session = sessionRef.current
+    if (!session) return []
+    const results = session.finish(input)
+    sessionRef.current = null
+    return results
+  }, [])
 
   const requestPermission = useCallback(async () => {
     try {
@@ -121,9 +149,12 @@ export function useSpeechRecognition({
     error,
     setError,
     connectionState,
+    enabledProviders,
+    liveProviders,
     start,
     abort,
     requestPermission,
+    finishBenchmark,
   }
 }
 
