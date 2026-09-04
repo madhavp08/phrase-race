@@ -26,10 +26,7 @@ export function Leaderboard({
         onClick={(event) => event.stopPropagation()}
       >
         <header className="lb-header">
-          <div>
-            <p className="lb-kicker">live</p>
-            <h2>leaderboard</h2>
-          </div>
+          <h2>leaderboard</h2>
           <button type="button" className="lb-close" onClick={onClose}>
             close
           </button>
@@ -38,7 +35,7 @@ export function Leaderboard({
         {error && <p className="error-line">{error}</p>}
 
         {!error && board.length === 0 && (
-          <p className="muted">No scores yet. Finish a test to claim a username.</p>
+          <p className="muted">No scores yet.</p>
         )}
 
         {board.length > 0 && (
@@ -80,7 +77,6 @@ export function Leaderboard({
           </>
         )}
 
-        <p className="lb-foot">usernames only · skip posts as guest #0, guest #1, …</p>
       </div>
     </div>
   )

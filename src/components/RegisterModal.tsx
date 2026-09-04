@@ -55,17 +55,8 @@ export function RegisterModal({
         onClick={(event) => event.stopPropagation()}
       >
         <header className="lb-header">
-          <div>
-            <p className="lb-kicker">claim your score</p>
-            <h2 id="register-title">register</h2>
-          </div>
+          <h2 id="register-title">register</h2>
         </header>
-
-        <p className="reg-copy">
-          {submitting
-            ? 'Saving your score to the live board… this usually takes a couple of seconds.'
-            : 'Pick a unique username and an email. The public board shows only the username. One email can only ever own one username. Skip and you still appear on the board as guest #0, guest #1, and so on.'}
-        </p>
 
         <form className="reg-form" onSubmit={handleSubmit}>
           <label className="reg-field">
@@ -100,7 +91,7 @@ export function RegisterModal({
               className="icon-btn primary"
               disabled={submitting}
             >
-              {submitting ? 'saving…' : 'post to board'}
+              {submitting ? 'saving…' : 'save'}
             </button>
             <button
               type="button"
@@ -108,7 +99,7 @@ export function RegisterModal({
               onClick={onSkip}
               disabled={submitting}
             >
-              skip — post as guest
+              skip
             </button>
           </div>
         </form>

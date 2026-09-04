@@ -38,10 +38,7 @@ export function ResultsScreen({
 }: ResultsScreenProps) {
   return (
     <section className="results">
-      <p className="results-kicker">your test</p>
-      {judgeName && (
-        <p className="results-judge">scored by {judgeName} · highest WPM this round</p>
-      )}
+      {judgeName && <p className="results-judge">{judgeName}</p>}
       <div className="results-hero">
         <div className="result-group">
           <div className="top">wpm</div>
@@ -147,10 +144,6 @@ export function ResultsScreen({
       {saveError && <p className="error-line">{saveError}</p>}
 
       <ModelResults models={modelResults} judgeName={judgeName} />
-
-      <p className="keytip results-tip">
-        <span>tab</span> — home
-      </p>
 
       <AttemptReview attempts={attempts} />
       <ModelReview models={modelResults} />
