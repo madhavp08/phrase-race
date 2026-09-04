@@ -7,19 +7,19 @@
     "api/runs.ts": {
       "maxDuration": 10,
       "memory": 1024,
-      "includeFiles": "node_modules/@neondatabase/serverless/**"
+      "includeFiles": "{api/_lib/**,node_modules/@neondatabase/serverless/**}"
     },
     "api/leaderboard.ts": {
       "maxDuration": 10,
-      "includeFiles": "node_modules/@neondatabase/serverless/**"
+      "includeFiles": "{api/_lib/**,node_modules/@neondatabase/serverless/**}"
     },
     "api/profile.ts": {
       "maxDuration": 10,
-      "includeFiles": "node_modules/@neondatabase/serverless/**"
+      "includeFiles": "{api/_lib/**,node_modules/@neondatabase/serverless/**}"
     },
     "api/models/summary.ts": {
       "maxDuration": 10,
-      "includeFiles": "node_modules/@neondatabase/serverless/**"
+      "includeFiles": "{api/_lib/**,node_modules/@neondatabase/serverless/**}"
     }
   }
 }

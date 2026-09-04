@@ -1,4 +1,6 @@
 /// <reference types="node" />
+import { getDatabaseUrl } from './_lib/db.js'
+import { getPublicProfile } from './_lib/store.js'
 
 export default async function handler(
   req: {
@@ -18,7 +20,6 @@ export default async function handler(
       return
     }
 
-    const { getDatabaseUrl } = await import('./_lib/db')
     if (!getDatabaseUrl()) {
       res.status(503).json({
         error: 'DATABASE_URL is not set.',
@@ -36,7 +37,6 @@ export default async function handler(
       return
     }
 
-    const { getPublicProfile } = await import('./_lib/store')
     const profile = await getPublicProfile({ anonymousId, username })
     res.setHeader('Cache-Control', 'no-store')
     if (!profile) {
