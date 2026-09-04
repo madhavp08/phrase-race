@@ -14,30 +14,31 @@ export default async function handler(
     setHeader: (key: string, value: string) => void
   },
 ) {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' })
-    return
-  }
-
-  const parsed = validateRunPayload(req.body)
-  if (!parsed.ok) {
-    res.status(400).json({ error: parsed.error })
-    return
-  }
-
-  if (!getDatabaseUrl()) {
-    res.status(503).json({
-      error:
-        'DATABASE_URL is not set. Provision Neon and add the connection string to run persistence.',
-    })
-    return
-  }
-
   try {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' })
+      return
+    }
+
+    const parsed = validateRunPayload(coerceBody(req.body))
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error })
+      return
+    }
+
+    if (!getDatabaseUrl()) {
+      res.status(503).json({
+        error:
+          'DATABASE_URL is not set. Provision Neon and add the connection string to run persistence.',
+      })
+      return
+    }
+
     const result = await createRun(parsed.value)
     res.setHeader('Cache-Control', 'no-store')
     res.status(201).json(result)
   } catch (error) {
+    console.error('[api/runs]', error)
     if (error instanceof AccountConflictError) {
       res.status(409).json({ error: error.message, code: error.code })
       return
@@ -46,4 +47,12 @@ export default async function handler(
       error: error instanceof Error ? error.message : 'Failed to save run',
     })
   }
+}
+
+function coerceBody(body: unknown): unknown {
+  if (typeof body === 'string') return body
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(body)) {
+    return body.toString('utf8')
+  }
+  return body
 }

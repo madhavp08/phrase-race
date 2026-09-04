@@ -55,6 +55,7 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
     payload.modeLabel ??
     (payload.testType === 'stress' ? 'custom' : `time ${payload.durationSec}`)
 
+  const pendingWordInserts: Array<{ text: string; params: unknown[] }> = []
   const results = await sql.transaction((txn) => {
     const queries = [
       txn.query(
@@ -148,12 +149,10 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
         ]),
       )
       for (const packed of wordPacks) {
-        queries.push(
-          txn.query(
-            `INSERT INTO word_results (${packed.columns}) VALUES ${packed.values}`,
-            packed.params,
-          ),
-        )
+        pendingWordInserts.push({
+          text: `INSERT INTO word_results (${packed.columns}) VALUES ${packed.values}`,
+          params: packed.params,
+        })
       }
     }
 
@@ -186,6 +185,16 @@ export async function createRun(payload: RunPayload): Promise<CreateRunResult> {
 
     return queries
   })
+
+  if (pendingWordInserts.length > 0) {
+    try {
+      await sql.transaction((txn) =>
+        pendingWordInserts.map((query) => txn.query(query.text, query.params)),
+      )
+    } catch (error) {
+      console.error('[PhraseRace] word_results insert failed', error)
+    }
+  }
 
   const last = results.at(-1)
   const rankRows = (Array.isArray(last) ? last : []) as Array<{

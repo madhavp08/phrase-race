@@ -14,8 +14,19 @@ describe('errorFromBody', () => {
     ).toMatch(/timed out/i)
   })
 
+  it('unwraps Vercel FUNCTION_INVOCATION_FAILED envelopes', () => {
+    expect(
+      errorFromBody(
+        500,
+        { error: { code: '500', message: 'A server error has occurred' } },
+        '',
+        'x',
+      ),
+    ).toBe('A server error has occurred')
+  })
+
   it('falls back to a short text snippet', () => {
-    expect(errorFromBody(500, null, 'nope', 'fallback')).toBe('nope')
+    expect(errorFromBody(400, null, 'nope', 'fallback')).toBe('nope')
   })
 })
 

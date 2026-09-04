@@ -28,10 +28,25 @@ export function getSql(): NeonQueryFunction<false, false> {
 export async function ensureSchema(): Promise<void> {
   if (schemaReady) return
   const client = getSql()
-  // One HTTP round-trip instead of ~20 sequential DDL calls on a cold lambda.
-  await client.transaction(
-    SCHEMA_SQL.map((statement) => client.query(statement, [])),
-  )
+  try {
+    await client.query(`SELECT 1 FROM leaderboard_scores LIMIT 0`, [])
+    schemaReady = true
+    return
+  } catch {
+    // Tables are not there yet — apply the idempotent DDL one statement at a
+    // time. A single Neon HTTP transaction of mixed CREATE/ALTER/INDEX can
+    // crash the Vercel isolate (FUNCTION_INVOCATION_FAILED / generic 500).
+  }
+
+  for (const statement of SCHEMA_SQL) {
+    try {
+      await client.query(statement, [])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (/already exists/i.test(message)) continue
+      throw error
+    }
+  }
   schemaReady = true
 }
 

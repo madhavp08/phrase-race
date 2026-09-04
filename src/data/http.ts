@@ -23,8 +23,15 @@ export function errorFromBody(
   fallback: string,
 ): string {
   if (json && typeof json === 'object' && 'error' in json) {
-    const message = (json as { error?: unknown }).error
-    if (typeof message === 'string' && message.trim()) return message
+    const err = (json as { error?: unknown }).error
+    if (typeof err === 'string' && err.trim()) return err
+    if (err && typeof err === 'object' && 'message' in err) {
+      const message = (err as { message?: unknown }).message
+      if (typeof message === 'string' && message.trim()) return message
+    }
+  }
+  if (status === 500) {
+    return 'Save failed on the server. Try again after the latest deploy finishes.'
   }
   if (status === 504 || status === 524) {
     return 'Save timed out on the server. Try again in a moment.'
