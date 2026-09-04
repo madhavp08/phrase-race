@@ -1,0 +1,208 @@
+import type { ModelResult, ModelResultStatus } from '../speech/types'
+
+const SECRET_KEY = /^(api[_-]?key|access_token|secret|authorization|xi-api-key)$/i
+
+export const TEST_TYPES = ['standard', 'stress'] as const
+export type TestType = (typeof TEST_TYPES)[number]
+
+export const RUN_OUTCOMES = [
+  'completed',
+  'aborted',
+  'insufficient_audio',
+] as const
+export type RunOutcome = (typeof RUN_OUTCOMES)[number]
+
+export interface RunUserMetrics {
+  rawWpm: number
+  netWpm: number
+  accuracy: number
+}
+
+export interface RunPayload {
+  anonymousId: string
+  startedAt: string
+  endedAt: string
+  testType: TestType
+  durationSec: number
+  referenceWords: string[]
+  promptSetId: string
+  benchmarkVersion: string
+  scorerVersion: string
+  audioFormat: string
+  sampleRate: number
+  openaiInputHz: number
+  outcome: RunOutcome
+  userMetrics: RunUserMetrics
+  models: ModelResult[]
+}
+
+export type RunPayloadError = { ok: false; error: string }
+export type RunPayloadOk = { ok: true; value: RunPayload }
+export type RunPayloadResult = RunPayloadOk | RunPayloadError
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function rejectSecretKeys(value: unknown, path = 'body'): string | null {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      const found = rejectSecretKeys(value[i], `${path}[${i}]`)
+      if (found) return found
+    }
+    return null
+  }
+  if (!isRecord(value)) return null
+  for (const key of Object.keys(value)) {
+    if (SECRET_KEY.test(key)) {
+      return `Forbidden credential field "${key}"`
+    }
+    const found = rejectSecretKeys(value[key], `${path}.${key}`)
+    if (found) return found
+  }
+  return null
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function asStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+    return null
+  }
+  return value
+}
+
+function parseModel(raw: unknown): ModelResult | null {
+  if (!isRecord(raw)) return null
+  const status = asString(raw.status) as ModelResultStatus | null
+  if (
+    status !== 'valid' &&
+    status !== 'provider_failure' &&
+    status !== 'client_failure'
+  ) {
+    return null
+  }
+  const wordResults = Array.isArray(raw.wordResults)
+    ? raw.wordResults.flatMap((row) => {
+        if (!isRecord(row)) return []
+        const expected = asString(row.expected) ?? ''
+        const heard = asString(row.heard) ?? ''
+        return [
+          {
+            expected,
+            heard,
+            correct: row.correct === true,
+            interimLatencyMs:
+              typeof row.interimLatencyMs === 'number'
+                ? row.interimLatencyMs
+                : null,
+            finalLatencyMs:
+              typeof row.finalLatencyMs === 'number' ? row.finalLatencyMs : null,
+          },
+        ]
+      })
+    : []
+
+  const config = isRecord(raw.config) ? raw.config : {}
+  return {
+    provider: asString(raw.provider) ?? '',
+    model: asString(raw.model) ?? '',
+    name: asString(raw.name) ?? asString(raw.provider) ?? '',
+    transcript: typeof raw.transcript === 'string' ? raw.transcript : '',
+    characterAccuracy: asNumber(raw.characterAccuracy) ?? 0,
+    cer: asNumber(raw.cer) ?? 0,
+    wer: asNumber(raw.wer) ?? 0,
+    modelNetWpm: asNumber(raw.modelNetWpm) ?? 0,
+    medianWordLatencyMs: asNumber(raw.medianWordLatencyMs) ?? 0,
+    p95WordLatencyMs: asNumber(raw.p95WordLatencyMs) ?? 0,
+    wordResults,
+    status,
+    error: typeof raw.error === 'string' ? raw.error : undefined,
+    config,
+  }
+}
+
+export function validateRunPayload(raw: unknown): RunPayloadResult {
+  const secret = rejectSecretKeys(raw)
+  if (secret) return { ok: false, error: secret }
+  if (!isRecord(raw)) return { ok: false, error: 'Body must be a JSON object' }
+
+  const anonymousId = asString(raw.anonymousId)
+  const startedAt = asString(raw.startedAt)
+  const endedAt = asString(raw.endedAt)
+  const testType = asString(raw.testType)
+  const durationSec = asNumber(raw.durationSec)
+  const referenceWords = asStringArray(raw.referenceWords)
+  const promptSetId = asString(raw.promptSetId)
+  const benchmarkVersion = asString(raw.benchmarkVersion)
+  const scorerVersion = asString(raw.scorerVersion)
+  const audioFormat = asString(raw.audioFormat)
+  const sampleRate = asNumber(raw.sampleRate)
+  const openaiInputHz = asNumber(raw.openaiInputHz)
+  const outcome = asString(raw.outcome)
+  const userMetrics = isRecord(raw.userMetrics) ? raw.userMetrics : null
+  const models = Array.isArray(raw.models)
+    ? raw.models.map(parseModel)
+    : null
+
+  if (!anonymousId) return { ok: false, error: 'anonymousId is required' }
+  if (!startedAt || !endedAt) return { ok: false, error: 'timestamps are required' }
+  if (!testType || !TEST_TYPES.includes(testType as TestType)) {
+    return { ok: false, error: 'testType must be standard or stress' }
+  }
+  if (durationSec === null || durationSec < 0) {
+    return { ok: false, error: 'durationSec is required' }
+  }
+  if (!referenceWords) return { ok: false, error: 'referenceWords must be a string array' }
+  if (!promptSetId) return { ok: false, error: 'promptSetId is required' }
+  if (!benchmarkVersion || !scorerVersion) {
+    return { ok: false, error: 'benchmarkVersion and scorerVersion are required' }
+  }
+  if (!audioFormat || sampleRate === null || openaiInputHz === null) {
+    return { ok: false, error: 'audioFormat, sampleRate, and openaiInputHz are required' }
+  }
+  if (!outcome || !RUN_OUTCOMES.includes(outcome as RunOutcome)) {
+    return { ok: false, error: 'outcome is invalid' }
+  }
+  if (!userMetrics) return { ok: false, error: 'userMetrics is required' }
+  const rawWpm = asNumber(userMetrics.rawWpm)
+  const netWpm = asNumber(userMetrics.netWpm)
+  const accuracy = asNumber(userMetrics.accuracy)
+  if (rawWpm === null || netWpm === null || accuracy === null) {
+    return { ok: false, error: 'userMetrics fields are required' }
+  }
+  if (!models || models.some((model) => model === null)) {
+    return { ok: false, error: 'models must be an array of model results' }
+  }
+  if (models.length === 0) return { ok: false, error: 'models must not be empty' }
+  if (models.some((model) => !model?.provider)) {
+    return { ok: false, error: 'each model needs a provider' }
+  }
+
+  return {
+    ok: true,
+    value: {
+      anonymousId,
+      startedAt,
+      endedAt,
+      testType: testType as TestType,
+      durationSec,
+      referenceWords,
+      promptSetId,
+      benchmarkVersion,
+      scorerVersion,
+      audioFormat,
+      sampleRate,
+      openaiInputHz,
+      outcome: outcome as RunOutcome,
+      userMetrics: { rawWpm, netWpm, accuracy },
+      models: models as ModelResult[],
+    },
+  }
+}

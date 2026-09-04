@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Leaderboard, ResultsScreen, TestScreen } from './components'
+import { Leaderboard, ModelBoard, ResultsScreen, TestScreen } from './components'
 import {
   GameEngine,
   buildWordList,
@@ -12,10 +12,12 @@ import {
   tryRankScore,
   type LeaderboardEntry,
 } from './data/leaderboard'
+import { submitRun } from './data/submitRun'
 import {
   isSpeechRecognitionSupported,
   useSpeechRecognition,
 } from './speech'
+import type { ModelResult } from './speech'
 import type {
   GamePhase,
   PhraseAttempt,
@@ -80,6 +82,9 @@ function App() {
   const micReadyRef = useRef(false)
   const abortRef = useRef<() => void>(() => {})
   const timerStartedRef = useRef(false)
+  const finishBenchmarkRef = useRef<
+    (input: { referenceWords: string[]; elapsedMs: number }) => ModelResult[]
+  >(() => [])
 
   const [phase, setPhase] = useState<GamePhase>('idle')
   const [mode, setMode] = useState<TestMode>('time')
@@ -103,6 +108,10 @@ function App() {
   const [board, setBoard] = useState<LeaderboardEntry[]>(() => getLeaderboard())
   const [lastRank, setLastRank] = useState<number | null>(null)
   const [heardLog, setHeardLog] = useState<string[]>([])
+  const [modelResults, setModelResults] = useState<ModelResult[]>([])
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [modelsOpen, setModelsOpen] = useState(false)
+  const roundWallStartedRef = useRef(0)
 
   const activeDuration = resolveDuration(
     isCustomDuration,
@@ -139,6 +148,9 @@ function App() {
     setStartError(null)
     setLeaderboardOpen(false)
     setHeardLog([])
+    setModelResults([])
+    setSaveError(null)
+    setModelsOpen(false)
     setWords(previewWords(mode, customPhrase))
     setWordIndex(0)
     setAttempts([])
@@ -148,6 +160,20 @@ function App() {
   }, [activeDuration, clearTimers, customPhrase, mode])
 
   const finishRound = useCallback(() => {
+    const playing = engineRef.current.getState()
+    const referenceWords = playing.words.map((word) => word.expected)
+    const elapsedMs =
+      mode === 'time' && activeDuration > 0
+        ? activeDuration * 1000
+        : playing.startedAt
+          ? performance.now() - playing.startedAt
+          : 0
+    const harvested = finishBenchmarkRef.current({
+      referenceWords,
+      elapsedMs,
+    })
+    setModelResults(harvested)
+
     clearTimers()
     const finished = engineRef.current.finishRound()
     const finalStats = engineRef.current.getStats()
@@ -166,6 +192,23 @@ function App() {
 
     phaseRef.current = 'finished'
     setPhase('finished')
+
+    if (harvested.length > 0) {
+      void submitRun({
+        startedAt: roundWallStartedRef.current || Date.now(),
+        testType: mode === 'custom' ? 'stress' : 'standard',
+        durationSec: mode === 'time' ? activeDuration : elapsedForRank,
+        referenceWords,
+        promptSetId:
+          mode === 'custom' ? 'tongue-twisters-v1' : 'english-400-stream-220',
+        outcome: 'completed',
+        stats: finalStats,
+        models: harvested,
+      }).then((saved) => {
+        if ('error' in saved) setSaveError(saved.error)
+        else setSaveError(null)
+      })
+    }
   }, [activeDuration, clearTimers, mode, syncFromEngine])
 
   const prepareIdle = useCallback(
@@ -208,6 +251,9 @@ function App() {
     connectionState,
     requestPermission,
     abort,
+    finishBenchmark,
+    enabledProviders,
+    liveProviders,
   } = useSpeechRecognition({
     onFinalTranscript: handleFinalTranscript,
     onLiveHypothesis: handleLiveHypothesis,
@@ -217,6 +263,10 @@ function App() {
   useEffect(() => {
     abortRef.current = abort
   }, [abort])
+
+  useEffect(() => {
+    finishBenchmarkRef.current = finishBenchmark
+  }, [finishBenchmark])
 
   useEffect(() => {
     if (
@@ -290,6 +340,9 @@ function App() {
       setElapsedSec(0)
       setLastRank(null)
       setHeardLog([])
+      setModelResults([])
+      setSaveError(null)
+      roundWallStartedRef.current = Date.now()
       // Timer itself starts once Deepgram is actually live — see the
       // `connectionState` effect below — so connection lag doesn't burn
       // into the round duration.
@@ -387,6 +440,13 @@ function App() {
             >
               board
             </button>
+            <button
+              type="button"
+              className="nav-btn"
+              onClick={() => setModelsOpen(true)}
+            >
+              models
+            </button>
           </nav>
         </div>
       </header>
@@ -399,11 +459,14 @@ function App() {
             durationSec={mode === 'time' ? activeDuration : elapsedSec}
             mode={mode}
             rank={lastRank}
+            modelResults={modelResults}
+            saveError={saveError}
             onPlayAgain={goHome}
             onOpenLeaderboard={() => {
               setBoard(getLeaderboard())
               setLeaderboardOpen(true)
             }}
+            onOpenModels={() => setModelsOpen(true)}
           />
         ) : (
           <TestScreen
@@ -424,6 +487,8 @@ function App() {
             error={startError ?? speechError}
             heardLog={heardLog}
             liveHypothesis={liveHypothesis}
+            liveProviderCount={liveProviders.length}
+            enabledProviderCount={enabledProviders.length}
             onModeChange={(next) => {
               setMode(next)
               if (next === 'custom' && !customPhrase.trim()) {
@@ -450,6 +515,7 @@ function App() {
         highlightRank={lastRank}
         onClose={() => setLeaderboardOpen(false)}
       />
+      <ModelBoard open={modelsOpen} onClose={() => setModelsOpen(false)} />
     </div>
   )
 }

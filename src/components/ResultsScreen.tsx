@@ -1,5 +1,8 @@
+import type { ModelResult } from '../speech'
 import type { PhraseAttempt, RoundStats, TestMode } from '../types'
 import { AttemptReview } from './AttemptReview'
+import { ModelResults } from './ModelResults'
+import { ModelReview } from './ModelReview'
 
 interface ResultsScreenProps {
   stats: RoundStats
@@ -7,8 +10,11 @@ interface ResultsScreenProps {
   durationSec: number
   mode: TestMode
   rank: number | null
+  modelResults: ModelResult[]
+  saveError: string | null
   onPlayAgain: () => void
   onOpenLeaderboard: () => void
+  onOpenModels: () => void
 }
 
 function fmt(value: number, digits = 0): string {
@@ -22,11 +28,15 @@ export function ResultsScreen({
   durationSec,
   mode,
   rank,
+  modelResults,
+  saveError,
   onPlayAgain,
   onOpenLeaderboard,
+  onOpenModels,
 }: ResultsScreenProps) {
   return (
     <section className="results">
+      <p className="results-kicker">your test</p>
       <div className="results-hero">
         <div className="result-group">
           <div className="top">wpm</div>
@@ -124,13 +134,21 @@ export function ResultsScreen({
         <button type="button" className="icon-btn" onClick={onOpenLeaderboard}>
           leaderboard
         </button>
+        <button type="button" className="icon-btn" onClick={onOpenModels}>
+          models
+        </button>
       </div>
+
+      {saveError && <p className="muted">{saveError}</p>}
+
+      <ModelResults models={modelResults} />
 
       <p className="keytip results-tip">
         <span>tab</span> — home
       </p>
 
       <AttemptReview attempts={attempts} />
+      <ModelReview models={modelResults} />
     </section>
   )
 }

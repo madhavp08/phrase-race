@@ -22,6 +22,8 @@ interface TestScreenProps {
   error: string | null
   heardLog: string[]
   liveHypothesis: string
+  liveProviderCount: number
+  enabledProviderCount: number
   onModeChange: (mode: TestMode) => void
   onDurationChange: (sec: number) => void
   onCustomDurationChange: (value: string) => void
@@ -50,6 +52,8 @@ export function TestScreen({
   error,
   heardLog,
   liveHypothesis,
+  liveProviderCount,
+  enabledProviderCount,
   onModeChange,
   onDurationChange,
   onCustomDurationChange,
@@ -97,7 +101,9 @@ export function TestScreen({
           <div className="heard-box" aria-live="polite">
             <div className="heard-label">
               {connectionState === 'live'
-                ? 'hearing…'
+                ? enabledProviderCount > 1
+                  ? `hearing · ${liveProviderCount}/${enabledProviderCount} models`
+                  : 'hearing…'
                 : connectionState === 'reconnecting'
                   ? 'reconnecting…'
                   : 'connecting…'}

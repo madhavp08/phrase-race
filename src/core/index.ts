@@ -19,3 +19,13 @@ export {
   pickTongueTwister,
   pickTongueTwisterText,
 } from './game'
+export {
+  characterErrorRate,
+  wordErrorRate,
+  alignTokens,
+  median,
+  percentile,
+} from './sttMetrics'
+export { ShadowEvaluator, fanOutAudio } from './shadowEval'
+export { validateRunPayload } from './runPayload'
+export type { RunPayload } from './runPayload'
