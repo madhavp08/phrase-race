@@ -4,10 +4,10 @@ import type { PublicProfile } from '../data/profile'
 interface ProfileChipProps {
   username: string
   profile: PublicProfile | null
-  error: string | null
+  onLogout: () => void
 }
 
-export function ProfileChip({ username, profile, error }: ProfileChipProps) {
+export function ProfileChip({ username, profile, onLogout }: ProfileChipProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
 
@@ -46,42 +46,42 @@ export function ProfileChip({ username, profile, error }: ProfileChipProps) {
 
       {open && (
         <div className="profile-panel" role="dialog" aria-label="Your profile">
-          <p className="profile-kicker">profile</p>
           <h2>{username}</h2>
-          {stats ? (
-            <ul className="profile-stats">
-              <li>
-                <span>best</span>
-                <strong>
-                  {stats.bestWpm != null ? `${stats.bestWpm} wpm` : '—'}
-                </strong>
-              </li>
-              <li>
-                <span>acc</span>
-                <strong>
-                  {stats.bestAccuracy != null ? `${stats.bestAccuracy}%` : '—'}
-                </strong>
-              </li>
-              <li>
-                <span>runs</span>
-                <strong>{stats.runCount}</strong>
-              </li>
-              <li>
-                <span>rank</span>
-                <strong>{stats.rank != null ? `#${stats.rank}` : '—'}</strong>
-              </li>
-            </ul>
-          ) : (
-            <p className="muted">
-              {error
-                ? 'Stats will appear once the board is reachable.'
-                : 'Finish a round to fill this in. Email stays private.'}
-            </p>
-          )}
+          <ul className="profile-stats">
+            <li>
+              <span>best</span>
+              <strong>
+                {stats?.bestWpm != null ? `${stats.bestWpm} wpm` : '—'}
+              </strong>
+            </li>
+            <li>
+              <span>acc</span>
+              <strong>
+                {stats?.bestAccuracy != null ? `${stats.bestAccuracy}%` : '—'}
+              </strong>
+            </li>
+            <li>
+              <span>runs</span>
+              <strong>{stats?.runCount ?? 0}</strong>
+            </li>
+            <li>
+              <span>rank</span>
+              <strong>{stats?.rank != null ? `#${stats.rank}` : '—'}</strong>
+            </li>
+          </ul>
           {stats?.modeLabel && (
-            <p className="profile-mode">best on {stats.modeLabel}</p>
+            <p className="profile-mode">{stats.modeLabel}</p>
           )}
-          <p className="profile-foot">email never shown on the board</p>
+          <button
+            type="button"
+            className="profile-logout"
+            onClick={() => {
+              setOpen(false)
+              onLogout()
+            }}
+          >
+            log out
+          </button>
         </div>
       )}
     </div>

@@ -93,7 +93,6 @@ export function ConfigBar({
             >
               shuffle
             </button>
-            <span className="config-hint">paste your own or shuffle</span>
           </div>
         )}
       </div>

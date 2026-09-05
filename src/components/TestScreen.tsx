@@ -118,7 +118,7 @@ export function TestScreen({
                 <span className="heard-live">{liveHypothesis}</span>
               )}
               {!recentCommitted && !liveHypothesis && (
-                <span className="heard-empty">start speaking…</span>
+                <span className="heard-empty">…</span>
               )}
             </p>
           </div>
@@ -127,21 +127,15 @@ export function TestScreen({
         {!playing && (
           <p className="start-hint">
             {supported ? (
-              <>
-                <span>
-                  press <span className="keychip">tab</span> to start
-                </span>
-                <span className="hint-or">or</span>
-                <button
-                  type="button"
-                  className="text-btn primary"
-                  onClick={onStart}
-                >
-                  click here
-                </button>
-              </>
+              <button
+                type="button"
+                className="text-btn primary"
+                onClick={onStart}
+              >
+                start
+              </button>
             ) : (
-              'Use a browser with microphone support'
+              'Microphone required'
             )}
           </p>
         )}
@@ -152,11 +146,8 @@ export function TestScreen({
 
       <div className="footer-row">
         <button type="button" className="restart-btn" onClick={onGoHome}>
-          {playing ? 'end round' : 'restart'}
+          {playing ? 'end' : 'restart'}
         </button>
-        <p className="keytip">
-          <span>tab</span> — {playing ? 'home' : 'start'}
-        </p>
       </div>
     </section>
   )

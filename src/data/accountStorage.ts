@@ -26,3 +26,11 @@ export function writeSavedAccount(account: AccountFields) {
     /* private mode / quota — registration still succeeded server-side */
   }
 }
+
+export function clearSavedAccount() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+}

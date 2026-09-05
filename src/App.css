@@ -140,11 +140,21 @@
   font-variant-numeric: tabular-nums;
 }
 
-.profile-mode,
-.profile-foot {
+.profile-mode {
   margin: 0.7rem 0 0;
   color: var(--sub-color);
   font-size: 0.72rem;
+}
+
+.profile-logout {
+  margin-top: 0.85rem;
+  color: var(--sub-color);
+  font-size: 0.8rem;
+  padding: 0.2rem 0;
+}
+
+.profile-logout:hover {
+  color: var(--text-color);
 }
 
 .nav-btn {

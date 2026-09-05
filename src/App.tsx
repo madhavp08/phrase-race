@@ -20,7 +20,11 @@ import {
 import { SENTENCE_PROMPT_SET_ID } from './data/sentences'
 import type { AccountFields } from './core/account'
 import { pacedWordIndex, timedPromptWordCount } from './core/readingPace'
-import { readSavedAccount, writeSavedAccount } from './data/accountStorage'
+import {
+  clearSavedAccount,
+  readSavedAccount,
+  writeSavedAccount,
+} from './data/accountStorage'
 import { getAnonymousId } from './data/anonymousId'
 import {
   fetchLeaderboard,
@@ -151,7 +155,6 @@ function App() {
     () => readSavedAccount()?.username ?? null,
   )
   const [profile, setProfile] = useState<PublicProfile | null>(null)
-  const [profileError, setProfileError] = useState<string | null>(null)
   const [livePrimaryId, setLivePrimaryId] = useState(() =>
     pickLivePrimary(parseEnabledProviders(), []),
   )
@@ -167,7 +170,6 @@ function App() {
     const saved = username ?? readSavedAccount()?.username
     if (!saved) {
       setProfile(null)
-      setProfileError(null)
       return
     }
     const result = await fetchProfile({
@@ -175,7 +177,6 @@ function App() {
       anonymousId: getAnonymousId(),
     })
     setProfile(result.profile)
-    setProfileError(result.error)
   }, [])
 
   const refreshBoard = useCallback(async (username?: string | null) => {
@@ -651,7 +652,13 @@ function App() {
           <ProfileChip
             username={savedAccount.username}
             profile={profile}
-            error={profileError}
+            onLogout={() => {
+              clearSavedAccount()
+              setSavedAccount(null)
+              setYouName(null)
+              setProfile(null)
+              setBoard((entries) => markYou(entries, null))
+            }}
           />
         )}
       </header>

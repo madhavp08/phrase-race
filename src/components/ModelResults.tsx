@@ -16,10 +16,6 @@ export function ModelResults({ models, judgeName }: ModelResultsProps) {
   return (
     <div className="model-results">
       <h2>model results</h2>
-      <p className="model-caption">
-        Same 16 kHz audio, scored independently. Latency is end-to-end (last
-        sent PCM chunk → transcript event), not isolated model time.
-      </p>
       <div className="model-table" role="table">
         <div className="model-cols" role="row">
           <span>model</span>

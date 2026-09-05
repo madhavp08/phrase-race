@@ -56,10 +56,7 @@ export function ModelBoard({ open, onClose }: ModelBoardProps) {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="lb-header">
-          <div>
-            <p className="lb-kicker">aggregate</p>
-            <h2>model comparison</h2>
-          </div>
+          <h2>models</h2>
           <button type="button" className="lb-close" onClick={onClose}>
             close
           </button>
@@ -68,7 +65,7 @@ export function ModelBoard({ open, onClose }: ModelBoardProps) {
         {loading && <p className="muted">loading…</p>}
         {error && <p className="error-line">{error}</p>}
         {!loading && rows.length === 0 && !error && (
-          <p className="muted">No saved benchmark runs yet.</p>
+          <p className="muted">No runs yet.</p>
         )}
 
         {rows.length > 0 && (
@@ -98,10 +95,6 @@ export function ModelBoard({ open, onClose }: ModelBoardProps) {
           </>
         )}
 
-        <p className="lb-foot">
-          Aggregates only include status=valid rows. Numbers are measured, not
-          claimed.
-        </p>
       </div>
     </div>
   )
